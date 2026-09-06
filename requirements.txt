@@ -1,0 +1,7 @@
+numpy
+pandas
+scikit-learn
+streamlit
+qdrant-client
+plotly
+python-dotenv
