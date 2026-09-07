@@ -1,0 +1,55 @@
+{
+    "experiment": "M2.2",
+    "dataset": "Bruteforce-Tuesday-no-metadata.parquet",
+    "features_count": 59,
+    "autoencoder": {
+        "model": "Deep Autoencoder",
+        "roc_auc": 0.8616092853385336,
+        "pr_auc": 0.27299752489872514,
+        "best_f1": 0.5009729082472684,
+        "precision": 0.38090360760213954,
+        "recall": 0.7315846994535519,
+        "accuracy": 0.8721270291779731,
+        "threshold": 0.0018192616989836097,
+        "confusion_matrix": [
+            [
+                84261,
+                10880
+            ],
+            [
+                2456,
+                6694
+            ]
+        ],
+        "tp": 6694,
+        "fp": 10880,
+        "tn": 84261,
+        "fn": 2456,
+        "training_time_seconds": 38.47897890000604
+    },
+    "isolation_forest": {
+        "model": "Isolation Forest",
+        "roc_auc": 0.7039251377435032,
+        "pr_auc": 0.13302122530796534,
+        "best_f1": 0.3192899876035285,
+        "precision": 0.19105157919631915,
+        "recall": 0.9711475409836066,
+        "accuracy": 0.6366992357921585,
+        "threshold": -0.14427458970389628,
+        "confusion_matrix": [
+            [
+                57516,
+                37625
+            ],
+            [
+                264,
+                8886
+            ]
+        ],
+        "tp": 8886,
+        "fp": 37625,
+        "tn": 57516,
+        "fn": 264,
+        "training_time_seconds": 1.3412984001915902
+    }
+}
