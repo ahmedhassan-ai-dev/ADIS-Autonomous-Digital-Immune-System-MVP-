@@ -28,10 +28,30 @@ df = df.fillna(df.median(numeric_only=True))
 attack_flows = df[df["Label"].astype(str).str.lower().ne("benign")].reset_index(drop=True)
 
 # 3. Initialize Modules
-analyzer = BehavioralThreatAnalyzer(input_dim=len(features), embedding_dim=32)
-sandbox = IsolationSandbox(analyzer=analyzer)
-memory = ImmuneMemory(embedding_dim=32)
+ENCODER_PATH = (
+    PROJECT_ROOT
+    / "models"
+    / "behavioral_encoder.joblib"
+)
 
+analyzer = BehavioralThreatAnalyzer(
+    encoder_path=str(ENCODER_PATH)
+)
+
+
+sandbox = IsolationSandbox(analyzer=analyzer)
+
+
+MEMORY_PATH = (
+    PROJECT_ROOT
+    / "data"
+    / "immune_memory"
+)
+
+memory = ImmuneMemory(
+    storage_path=str(MEMORY_PATH),
+    embedding_dim=32,
+)
 # =============================================================
 # EXPOSURE 1: Unseen Threat -> Detection -> Sandbox -> Commit
 # =============================================================

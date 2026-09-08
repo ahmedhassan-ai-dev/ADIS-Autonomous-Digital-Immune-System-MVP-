@@ -1,96 +1,326 @@
 from dataclasses import dataclass, field
-from typing import Dict, Any, List
-import numpy as np
+from typing import Dict, Any, List, Optional
 
+import numpy as np
+import pandas as pd
+import joblib
+
+
+# ============================================================
+# ADIS — M3 Behavioral Threat Representation
+# ============================================================
 
 @dataclass
 class ThreatAntigen:
     antigen_id: str
+
     technique_id: str
     technique_name: str
     tactic: str
     severity: str
+
     embedding: List[float]
+
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 class BehavioralThreatAnalyzer:
     """
-    Analyzes suspicious network telemetry, maps attack behaviors to
-    MITRE ATT&CK techniques, and generates stable normalized Antigen Vectors.
+    M3 — Behavioral Threat Representation.
+
+    Converts the raw CIC-IDS2017 feature vector into a stable
+    behavioral antigen representation.
+
+    Pipeline:
+
+        Raw Flow Features
+              ↓
+        Robust Scaling
+              ↓
+        PCA Projection
+              ↓
+        L2 Normalization
+              ↓
+        Behavioral Antigen Vector
     """
 
-    def __init__(self, input_dim: int = 77, embedding_dim: int = 32):
-        self.input_dim = input_dim
+    def __init__(
+        self,
+        encoder_path: Optional[str] = None,
+        embedding_dim: int = 32,
+        feature_names: Optional[List[str]] = None,
+    ):
         self.embedding_dim = embedding_dim
-        
-        # Deterministic, persistent projection matrix across the analyzer lifecycle
-        rng = np.random.default_rng(seed=42)
-        self.projection_matrix = rng.standard_normal((input_dim, embedding_dim)).astype(np.float32)
+        self.feature_names = feature_names
 
-    def _determine_technique(self, flow_data: Dict[str, Any]) -> Dict[str, str]:
-        # Behavioral heuristic mapping based on network characteristics
-        fwd_pkts_s = flow_data.get("Flow_Packets/s", flow_data.get("Flow Packets/s", 0.0))
-        syn_flags = flow_data.get("SYN_Flag_Count", flow_data.get("SYN Flag Count", 0.0))
-        dst_port = flow_data.get("Destination_Port", flow_data.get("Destination Port", 0.0))
-        flow_duration = flow_data.get("Flow_Duration", flow_data.get("Flow Duration", 0.0))
+        self.scaler = None
+        self.pca = None
 
-        # Port Scanning behavior: Brief flows, repeated SYN probes across ports
-        if syn_flags > 0 and (flow_duration < 10000 or fwd_pkts_s > 5000):
+        if encoder_path:
+            artifact = joblib.load(encoder_path)
+
+            self.scaler = artifact["scaler"]
+            self.pca = artifact["pca"]
+
+            self.feature_names = artifact["features"]
+            self.embedding_dim = artifact["embedding_dim"]
+
+    # ========================================================
+    # Feature preparation
+    # ========================================================
+
+    def _prepare_features(
+        self,
+        raw_features: np.ndarray,
+    ) -> np.ndarray:
+
+        arr = np.asarray(raw_features, dtype=np.float32)
+
+        if arr.ndim == 1:
+            arr = arr.reshape(1, -1)
+
+        arr = np.nan_to_num(
+            arr,
+            nan=0.0,
+            posinf=0.0,
+            neginf=0.0,
+        )
+
+        if self.feature_names is not None:
+            expected_dim = len(self.feature_names)
+
+            if arr.shape[1] != expected_dim:
+                raise ValueError(
+                    f"Feature dimension mismatch. "
+                    f"Expected {expected_dim}, got {arr.shape[1]}"
+                )
+
+        return arr
+
+    # ========================================================
+    # Behavioral embedding
+    # ========================================================
+
+    def generate_antigen_vector(
+        self,
+        raw_features: np.ndarray,
+    ) -> List[float]:
+
+        if self.scaler is None or self.pca is None:
+            raise RuntimeError(
+                "Behavioral encoder is not loaded. "
+                "Train and provide an encoder_path."
+            )
+
+        X = self._prepare_features(raw_features)
+
+        # Robust scaling
+        X_scaled = self.scaler.transform(X)
+
+        # PCA behavioral projection
+        embedding = self.pca.transform(X_scaled)
+
+        # L2 normalization for cosine similarity
+        norm = np.linalg.norm(
+            embedding,
+            axis=1,
+            keepdims=True,
+        )
+
+        norm = np.maximum(norm, 1e-12)
+
+        embedding = embedding / norm
+
+        return embedding[0].astype(np.float32).tolist()
+
+    # ========================================================
+    # Behavioral characterization
+    # ========================================================
+
+    def _determine_behavior(
+        self,
+        flow_data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+
+        def get(*names, default=0.0):
+            for name in names:
+                if name in flow_data:
+                    value = flow_data[name]
+
+                    try:
+                        return float(value)
+                    except (TypeError, ValueError):
+                        return default
+
+            return default
+
+        fwd_packets = get(
+            "Total Fwd Packets",
+            "Total_Fwd_Packets",
+        )
+
+        bwd_packets = get(
+            "Total Backward Packets",
+            "Total_Backward_Packets",
+        )
+
+        flow_packets_s = get(
+            "Flow Packets/s",
+            "Flow_Packets/s",
+        )
+
+        flow_bytes_s = get(
+            "Flow Bytes/s",
+            "Flow_Bytes/s",
+        )
+
+        duration = get(
+            "Flow Duration",
+            "Flow_Duration",
+        )
+
+        syn = get(
+            "SYN Flag Count",
+            "SYN_Flag_Count",
+        )
+
+        rst = get(
+            "RST Flag Count",
+            "RST_Flag_Count",
+        )
+
+        ack = get(
+            "ACK Flag Count",
+            "ACK_Flag_Count",
+        )
+
+        packet_mean = get(
+            "Packet Length Mean",
+            "Packet_Length_Mean",
+        )
+
+        # ----------------------------------------------------
+        # Derived behavioral indicators
+        # ----------------------------------------------------
+
+        total_packets = fwd_packets + bwd_packets
+
+        asymmetry = (
+            fwd_packets / max(bwd_packets, 1.0)
+        )
+
+        syn_ratio = (
+            syn / max(fwd_packets, 1.0)
+        )
+
+        ack_ratio = (
+            ack / max(total_packets, 1.0)
+        )
+
+        # ----------------------------------------------------
+        # Heuristic behavior characterization
+        # ----------------------------------------------------
+
+        behavior = "GENERAL_SUSPICIOUS_TRAFFIC"
+
+        confidence = 0.40
+
+        # High-rate / volumetric behavior
+        if (
+            flow_packets_s > 10000
+            or total_packets > 500
+            or flow_bytes_s > 1e8
+        ):
+            behavior = "VOLUMETRIC_NETWORK_ACTIVITY"
+            confidence = 0.80
+
+        # SYN-heavy short flows
+        elif (
+            syn > 0
+            and duration < 10000
+            and syn_ratio > 0.2
+        ):
+            behavior = "CONNECTION_PROBING"
+            confidence = 0.75
+
+        # Strongly asymmetric traffic
+        elif (
+            asymmetry > 10
+            or asymmetry < 0.1
+        ):
+            behavior = "TRAFFIC_ASYMMETRY"
+            confidence = 0.60
+
+        # Reset-heavy behavior
+        elif rst > 0:
+            behavior = "CONNECTION_RESET_ACTIVITY"
+            confidence = 0.55
+
+        return {
+            "behavior_class": behavior,
+            "behavior_confidence": confidence,
+            "flow_packets_per_second": flow_packets_s,
+            "flow_bytes_per_second": flow_bytes_s,
+            "packet_count": total_packets,
+            "packet_length_mean": packet_mean,
+            "flow_duration": duration,
+            "syn_count": syn,
+            "rst_count": rst,
+            "ack_count": ack,
+            "traffic_asymmetry": asymmetry,
+            "syn_ratio": syn_ratio,
+            "ack_ratio": ack_ratio,
+        }
+
+    # ========================================================
+    # ATT&CK interpretation
+    # ========================================================
+
+    def _map_to_attack_technique(
+        self,
+        behavior: Dict[str, Any],
+    ) -> Dict[str, Any]:
+
+        behavior_class = behavior["behavior_class"]
+
+        if behavior_class == "CONNECTION_PROBING":
             return {
                 "technique_id": "T1046",
                 "technique_name": "Network Service Discovery",
                 "tactic": "Discovery",
                 "severity": "MEDIUM",
+                "mapping_confidence": 0.75,
             }
-        
-        # Volumetric DoS/DDoS behavior: Floods of packets or sustained saturation
-        if fwd_pkts_s > 10000 or flow_data.get("Total_Fwd_Packets", flow_data.get("Total Fwd Packets", 0)) > 500:
+
+        if behavior_class == "VOLUMETRIC_NETWORK_ACTIVITY":
             return {
                 "technique_id": "T1498",
                 "technique_name": "Network Denial of Service",
                 "tactic": "Impact",
                 "severity": "HIGH",
+                "mapping_confidence": 0.80,
             }
 
-        # Authentication Brute Force: Targeted service ports (SSH: 22, FTP: 21, Telnet: 23)
-        if dst_port in [21, 22, 23, 3389]:
+        if behavior_class == "TRAFFIC_ASYMMETRY":
             return {
-                "technique_id": "T1110",
-                "technique_name": "Brute Force",
-                "tactic": "Credential Access",
-                "severity": "HIGH",
+                "technique_id": "T1046",
+                "technique_name": "Network Service Discovery",
+                "tactic": "Discovery",
+                "severity": "MEDIUM",
+                "mapping_confidence": 0.45,
             }
 
-        # Default fallback categorization
         return {
-            "technique_id": "T1190",
-            "technique_name": "Exploit Public-Facing Application",
-            "tactic": "Initial Access",
-            "severity": "CRITICAL",
+            "technique_id": "UNKNOWN",
+            "technique_name": "Unclassified Suspicious Network Behavior",
+            "tactic": "Unknown",
+            "severity": "MEDIUM",
+            "mapping_confidence": 0.25,
         }
 
-    def generate_antigen_vector(self, raw_features: np.ndarray) -> List[float]:
-        """
-        Projects raw tabular flow features into a dense, normalized L2 Antigen Vector.
-        """
-        arr = np.nan_to_num(raw_features, nan=0.0, posinf=0.0, neginf=0.0).flatten()
-
-        # Consistent matrix projection
-        if len(arr) == self.projection_matrix.shape[0]:
-            projected = np.dot(arr, self.projection_matrix)
-        else:
-            # Dynamic fallback if feature count differs
-            rng = np.random.default_rng(seed=42)
-            fallback_proj = rng.standard_normal((len(arr), self.embedding_dim)).astype(np.float32)
-            projected = np.dot(arr, fallback_proj)
-
-        # L2 Normalization for Cosine Distance in Qdrant
-        norm = np.linalg.norm(projected)
-        if norm > 0:
-            projected = projected / norm
-
-        return projected.tolist()
+    # ========================================================
+    # Main analysis
+    # ========================================================
 
     def analyze_and_extract(
         self,
@@ -99,27 +329,57 @@ class BehavioralThreatAnalyzer:
         raw_features: np.ndarray,
         anomaly_score: float,
     ) -> ThreatAntigen:
-        tech_meta = self._determine_technique(flow_dict)
-        embedding = self.generate_antigen_vector(raw_features)
+
+        behavior = self._determine_behavior(flow_dict)
+
+        technique = self._map_to_attack_technique(
+            behavior
+        )
+
+        embedding = self.generate_antigen_vector(
+            raw_features
+        )
 
         metadata = {
             "anomaly_score": float(anomaly_score),
-            "target_port": flow_dict.get("Destination_Port", flow_dict.get("Destination Port", 0)),
-            "protocol": flow_dict.get("Protocol", 6),
-            "flow_duration": flow_dict.get("Flow_Duration", flow_dict.get("Flow Duration", 0)),
+
+            "behavior_class":
+                behavior["behavior_class"],
+
+            "behavior_confidence":
+                behavior["behavior_confidence"],
+
+            "mapping_confidence":
+                technique["mapping_confidence"],
+
+            "protocol":
+                flow_dict.get(
+                    "Protocol",
+                    flow_dict.get(
+                        "protocol",
+                        0,
+                    ),
+                ),
+
+            **behavior,
         }
 
         return ThreatAntigen(
             antigen_id=antigen_id,
-            technique_id=tech_meta["technique_id"],
-            technique_name=tech_meta["technique_name"],
-            tactic=tech_meta["tactic"],
-            severity=tech_meta["severity"],
+
+            technique_id=
+                technique["technique_id"],
+
+            technique_name=
+                technique["technique_name"],
+
+            tactic=
+                technique["tactic"],
+
+            severity=
+                technique["severity"],
+
             embedding=embedding,
+
             metadata=metadata,
         )
-
-
-
-
-    
