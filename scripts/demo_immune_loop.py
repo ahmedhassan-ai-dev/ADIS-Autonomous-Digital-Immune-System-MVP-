@@ -1,121 +1,690 @@
 from pathlib import Path
+import shutil
 import time
+
 import joblib
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from src.analysis.threat_analyzer import BehavioralThreatAnalyzer
 from src.sandbox.isolation_chamber import IsolationSandbox
 from src.memory.immune_memory import ImmuneMemory
 
-# Paths
+
+# ================================================================
+# Configuration
+# ================================================================
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-MODEL_PATH = PROJECT_ROOT / "models" / "merged_binary_detector.joblib"
-DATA_FILE = PROJECT_ROOT / "data" / "raw" / "cicids2017" / "Portscan-Friday-no-metadata.parquet"
 
-print("=" * 80)
-print("[ADIS] DEMONSTRATING FULL END-TO-END IMMUNE LOOP (M3)")
-print("=" * 80)
+MODEL_PATH = (
+    PROJECT_ROOT
+    / "models"
+    / "merged_binary_detector.joblib"
+)
 
-# 1. Load Model & Assets
-artifact = joblib.load(MODEL_PATH)
-model = artifact["model"]
-features = artifact["features"]
-
-# 2. Load Traffic Data
-df = pd.read_parquet(DATA_FILE).replace([np.inf, -np.inf], np.nan)
-df = df.fillna(df.median(numeric_only=True))
-attack_flows = df[df["Label"].astype(str).str.lower().ne("benign")].reset_index(drop=True)
-
-# 3. Initialize Modules
 ENCODER_PATH = (
     PROJECT_ROOT
     / "models"
     / "behavioral_encoder.joblib"
 )
 
-analyzer = BehavioralThreatAnalyzer(
-    encoder_path=str(ENCODER_PATH)
-)
-
-
-sandbox = IsolationSandbox(analyzer=analyzer)
-
-
-MEMORY_PATH = (
+DATA_PATH = (
     PROJECT_ROOT
     / "data"
-    / "immune_memory"
+    / "raw"
+    / "cicids2017"
+    / "Portscan-Friday-no-metadata.parquet"
 )
 
-memory = ImmuneMemory(
-    storage_path=str(MEMORY_PATH),
-    embedding_dim=32,
+# Separate demo memory so running the demo repeatedly
+# does not pollute the real production immune memory.
+DEMO_MEMORY_PATH = (
+    PROJECT_ROOT
+    / "models"
+    / "immune_memory_demo"
 )
-# =============================================================
-# EXPOSURE 1: Unseen Threat -> Detection -> Sandbox -> Commit
-# =============================================================
-print("\n[EXPOSURE 1] Detecting Unseen Threat...")
-exp1_df = pd.DataFrame([attack_flows.iloc[0][features]])
 
-t0 = time.perf_counter()
-prob_exp1 = model.predict_proba(exp1_df)[:, 1][0]
-t_detect1 = (time.perf_counter() - t0) * 1000
+KNOWN_THRESHOLD = 0.92
+NEAR_THRESHOLD = 0.80
 
-print(f"  + Innate Anomaly Score: {prob_exp1:.4f} (Flagged in {t_detect1:.2f} ms)")
+# Set True when you want a clean reproducible demonstration.
+RESET_DEMO_MEMORY = True
 
-exp1_vector = analyzer.generate_antigen_vector(exp1_df.to_numpy())
-rec_exp1 = memory.recognize_threat(exp1_vector, similarity_threshold=0.85)
-matched_1 = rec_exp1 is not None and rec_exp1.get("matched", False)
-print(f"  + Immune Memory Search: Matched={matched_1} (Novel Threat Detected)")
 
-print("  + Routing to Sandbox for Deeper Behavioral Inspection...")
-t_sand_start = time.perf_counter()
-antigen = sandbox.investigate(
-    event_id="THREAT-001",
-    flow_dict=attack_flows.iloc[0].to_dict(),
-    raw_features=exp1_df.to_numpy(),
-    anomaly_score=prob_exp1,
-)
-t_sand = (time.perf_counter() - t_sand_start) * 1000
+# ================================================================
+# Helpers
+# ================================================================
 
-print(f"  + MITRE ATT&CK Identified: {antigen.technique_id} ({antigen.technique_name}) | Tactic: {antigen.tactic}")
-print(f"  + Investigation Latency: {t_sand:.2f} ms")
+def clean_for_detector(df: pd.DataFrame, features):
+    """
+    Clean input specifically for the binary detector.
 
-# Commit to Qdrant
-memory.commit_antigen(antigen)
-print(f"  + Committed to Qdrant Immune Memory. Total Signatures: {memory.count_memories()}")
+    The behavioral encoder performs its own imputation.
+    """
 
-# =============================================================
-# EXPOSURE 2: Re-exposure -> Immediate Recognition -> Containment
-# =============================================================
-print("\n" + "-" * 80)
-print("[EXPOSURE 2] Re-exposure to Related Threat Vector...")
-exp2_df = pd.DataFrame([attack_flows.iloc[5][features]])
+    X = df[features].copy()
 
-t0 = time.perf_counter()
-prob_exp2 = model.predict_proba(exp2_df)[:, 1][0]
-t_detect2 = (time.perf_counter() - t0) * 1000
-print(f"  + Innate Anomaly Score: {prob_exp2:.4f} (Flagged in {t_detect2:.2f} ms)")
+    X = X.replace(
+        [np.inf, -np.inf],
+        np.nan,
+    )
 
-t_mem_start = time.perf_counter()
-exp2_vector = analyzer.generate_antigen_vector(exp2_df.to_numpy())
-rec_exp2 = memory.recognize_threat(exp2_vector, similarity_threshold=0.85)
-t_mem = (time.perf_counter() - t_mem_start) * 1000
+    medians = X.median(
+        numeric_only=True
+    )
 
-print(f"  + Immune Memory Lookup Latency: {t_mem:.2f} ms")
+    X = X.fillna(medians)
 
-if rec_exp2 and rec_exp2.get("matched", False):
-    print(f"  + IMMUNE RECOGNITION HIT! Similarity: {rec_exp2['similarity_score'] * 100:.2f}%")
-    print(f"  + Recalled Technique: {rec_exp2['payload']['technique_id']} - {rec_exp2['payload']['technique_name']}")
-    print(f"  + ACTION: Autonomous Instant Containment (Skipping Sandbox!)")
-    
-    total_t1 = t_detect1 + t_sand
-    total_t2 = t_detect2 + t_mem
-    speedup = total_t1 / max(total_t2, 0.01)
-    print(f"  + Operational Speedup: {speedup:.1f}x Faster Defense Loop ({total_t1:.2f} ms -> {total_t2:.2f} ms)")
-else:
-    sim = rec_exp2["similarity_score"] if rec_exp2 else 0.0
-    print(f"  + Partial Match (Similarity: {sim * 100:.2f}%). Re-investigating...")
+    return X
 
-print("\n[ADIS] End-to-End Loop Demonstration Finished.")
+
+def print_separator():
+    print(
+        "\n"
+        + "=" * 78
+    )
+
+
+# ================================================================
+# Main
+# ================================================================
+
+def main():
+
+    print_separator()
+
+    print(
+        "[ADIS] M3 + M4 — End-to-End Immune Loop Demo"
+    )
+
+    print_separator()
+
+    # ------------------------------------------------------------
+    # Validate files
+    # ------------------------------------------------------------
+
+    for path in [
+        MODEL_PATH,
+        ENCODER_PATH,
+        DATA_PATH,
+    ]:
+
+        if not path.exists():
+            raise FileNotFoundError(
+                f"Required file not found:\n{path}"
+            )
+
+    # ------------------------------------------------------------
+    # Load detector
+    # ------------------------------------------------------------
+
+    print("\n[1] Loading binary detector...")
+
+    detector_bundle = joblib.load(
+        MODEL_PATH
+    )
+
+    detector = detector_bundle["model"]
+    feature_cols = detector_bundle["features"]
+
+    print(
+        f"    Detector features: {len(feature_cols)}"
+    )
+
+    # ------------------------------------------------------------
+    # Load behavioral encoder
+    # ------------------------------------------------------------
+
+    print("\n[2] Loading behavioral encoder...")
+
+    analyzer = BehavioralThreatAnalyzer(
+        encoder_path=ENCODER_PATH,
+        input_dim=len(feature_cols),
+    )
+
+    # ------------------------------------------------------------
+    # Load sandbox
+    # ------------------------------------------------------------
+
+    sandbox = IsolationSandbox(
+        analyzer=analyzer,
+        investigation_delay_ms=10.0,
+    )
+
+    # ------------------------------------------------------------
+    # Prepare demo memory
+    # ------------------------------------------------------------
+
+    if RESET_DEMO_MEMORY and DEMO_MEMORY_PATH.exists():
+
+        print(
+            "\n[3] Resetting demo immune memory..."
+        )
+
+        shutil.rmtree(
+            DEMO_MEMORY_PATH
+        )
+
+    memory = ImmuneMemory(
+        storage_path=DEMO_MEMORY_PATH,
+        embedding_dim=analyzer.embedding_dim,
+        known_threshold=KNOWN_THRESHOLD,
+        near_threshold=NEAR_THRESHOLD,
+        encoder_version=analyzer.encoder_version,
+        feature_schema_hash=analyzer.feature_schema_hash,
+    )
+
+    print(
+        f"    Existing memories: "
+        f"{memory.count_memories()}"
+    )
+
+    # ------------------------------------------------------------
+    # Load dataset
+    # ------------------------------------------------------------
+
+    print("\n[4] Loading attack dataset...")
+
+    df = pd.read_parquet(
+        DATA_PATH
+    )
+
+    print(
+        f"    Dataset rows: {len(df):,}"
+    )
+
+    # ------------------------------------------------------------
+    # Identify attack flows
+    # ------------------------------------------------------------
+
+    label_series = (
+        df["Label"]
+        .astype(str)
+        .str.strip()
+        .str.lower()
+    )
+
+    attack_mask = (
+        label_series != "benign"
+    )
+
+    attack_flows = (
+        df.loc[attack_mask]
+        .copy()
+        .reset_index(drop=True)
+    )
+
+    if len(attack_flows) == 0:
+        raise RuntimeError(
+            "No attack flows found."
+        )
+
+    print(
+        f"    Attack flows: {len(attack_flows):,}"
+    )
+
+    # ============================================================
+    # EXPOSURE #1
+    # ============================================================
+
+    print_separator()
+
+    print(
+        "[5] EXPOSURE #1 — First encounter"
+    )
+
+    flow_1 = attack_flows.iloc[0]
+
+    flow_1_df = flow_1[
+        feature_cols
+    ].to_frame().T
+
+    # ------------------------------------------------------------
+    # Detector
+    # ------------------------------------------------------------
+
+    detector_start = time.perf_counter()
+
+    detector_X = clean_for_detector(
+        flow_1_df,
+        feature_cols,
+    )
+
+    anomaly_score_1 = float(
+        detector.predict_proba(
+            detector_X
+        )[:, 1][0]
+    )
+
+    detector_ms = (
+        time.perf_counter()
+        - detector_start
+    ) * 1000.0
+
+    print(
+        f"    Detector score: "
+        f"{anomaly_score_1:.6f}"
+    )
+
+    print(
+        f"    Detector latency: "
+        f"{detector_ms:.3f} ms"
+    )
+
+    # ------------------------------------------------------------
+    # Encode
+    # ------------------------------------------------------------
+
+    encode_start = time.perf_counter()
+
+    antigen_1 = analyzer.analyze_and_extract(
+        flow_data=flow_1,
+        anomaly_score=anomaly_score_1,
+        source_dataset=DATA_PATH.name,
+    )
+
+    encode_ms = (
+        time.perf_counter()
+        - encode_start
+    ) * 1000.0
+
+    print(
+        f"    Behavior family: "
+        f"{antigen_1.metadata['behavior_family']}"
+    )
+
+    print(
+        f"    Embedding dimension: "
+        f"{len(antigen_1.embedding)}"
+    )
+
+    print(
+        f"    Encoder latency: "
+        f"{encode_ms:.3f} ms"
+    )
+
+    # ------------------------------------------------------------
+    # Immune memory recognition
+    # ------------------------------------------------------------
+
+    memory_start = time.perf_counter()
+
+    recognition_1 = (
+        memory.recognize_threat(
+            antigen_1.embedding
+        )
+    )
+
+    memory_ms = (
+        time.perf_counter()
+        - memory_start
+    ) * 1000.0
+
+    print(
+        f"    Memory classification: "
+        f"{recognition_1['classification']}"
+    )
+
+    print(
+        f"    Similarity: "
+        f"{recognition_1['similarity']:.6f}"
+    )
+
+    print(
+        f"    Memory latency: "
+        f"{memory_ms:.3f} ms"
+    )
+
+    # ------------------------------------------------------------
+    # Novel threat -> Sandbox
+    # ------------------------------------------------------------
+
+    if recognition_1["classification"] != "KNOWN":
+
+        print(
+            "\n    → Threat is not known."
+        )
+
+        print(
+            "    → Sending to isolation chamber..."
+        )
+
+        sandbox_start = time.perf_counter()
+
+        investigated_antigen = (
+            sandbox.investigate(
+                flow_data=flow_1,
+                anomaly_score=anomaly_score_1,
+                source_dataset=DATA_PATH.name,
+            )
+        )
+
+        sandbox_ms = (
+            time.perf_counter()
+            - sandbox_start
+        ) * 1000.0
+
+        print(
+            f"    Investigation mode: "
+            f"{investigated_antigen.metadata['investigation_mode']}"
+        )
+
+        print(
+            f"    Validation status: "
+            f"{investigated_antigen.metadata['validation_status']}"
+        )
+
+        print(
+            f"    Investigation latency: "
+            f"{sandbox_ms:.3f} ms"
+        )
+
+        # --------------------------------------------------------
+        # Commit to immune memory
+        # --------------------------------------------------------
+
+        commit_start = time.perf_counter()
+
+        commit_result = (
+            memory.commit_antigen(
+                investigated_antigen
+            )
+        )
+
+        commit_ms = (
+            time.perf_counter()
+            - commit_start
+        ) * 1000.0
+
+        print(
+            "\n    → New antigen committed "
+            "to immune memory."
+        )
+
+        print(
+            f"    Commit status: "
+            f"{commit_result['status']}"
+        )
+
+        print(
+            f"    Memory ID: "
+            f"{commit_result['memory_id']}"
+        )
+
+        print(
+            f"    Commit latency: "
+            f"{commit_ms:.3f} ms"
+        )
+
+    else:
+
+        print(
+            "\n    → Already known."
+        )
+
+        memory.record_reexposure(
+            recognition_1
+        )
+
+    # ============================================================
+    # EXPOSURE #2
+    # ============================================================
+
+    print_separator()
+
+    print(
+        "[6] EXPOSURE #2 — Re-exposure"
+    )
+
+    # Pick another attack flow.
+    # We deliberately do NOT assume it will match.
+    second_index = (
+        5 if len(attack_flows) > 5
+        else 1 if len(attack_flows) > 1
+        else 0
+    )
+
+    flow_2 = attack_flows.iloc[
+        second_index
+    ]
+
+    flow_2_df = flow_2[
+        feature_cols
+    ].to_frame().T
+
+    # ------------------------------------------------------------
+    # Detector
+    # ------------------------------------------------------------
+
+    detector_start = time.perf_counter()
+
+    detector_X_2 = clean_for_detector(
+        flow_2_df,
+        feature_cols,
+    )
+
+    anomaly_score_2 = float(
+        detector.predict_proba(
+            detector_X_2
+        )[:, 1][0]
+    )
+
+    detector_ms_2 = (
+        time.perf_counter()
+        - detector_start
+    ) * 1000.0
+
+    print(
+        f"    Detector score: "
+        f"{anomaly_score_2:.6f}"
+    )
+
+    # ------------------------------------------------------------
+    # Encoder
+    # ------------------------------------------------------------
+
+    encode_start = time.perf_counter()
+
+    antigen_2 = analyzer.analyze_and_extract(
+        flow_data=flow_2,
+        anomaly_score=anomaly_score_2,
+        source_dataset=DATA_PATH.name,
+    )
+
+    encode_ms_2 = (
+        time.perf_counter()
+        - encode_start
+    ) * 1000.0
+
+    print(
+        f"    Behavior family: "
+        f"{antigen_2.metadata['behavior_family']}"
+    )
+
+    # ------------------------------------------------------------
+    # Memory recognition
+    # ------------------------------------------------------------
+
+    memory_start = time.perf_counter()
+
+    recognition_2 = (
+        memory.recognize_threat(
+            antigen_2.embedding
+        )
+    )
+
+    memory_ms_2 = (
+        time.perf_counter()
+        - memory_start
+    ) * 1000.0
+
+    classification_2 = (
+        recognition_2["classification"]
+    )
+
+    similarity_2 = (
+        recognition_2["similarity"]
+    )
+
+    print(
+        f"    Classification: "
+        f"{classification_2}"
+    )
+
+    print(
+        f"    Similarity: "
+        f"{similarity_2:.6f}"
+    )
+
+    print(
+        f"    Memory latency: "
+        f"{memory_ms_2:.3f} ms"
+    )
+
+    # ------------------------------------------------------------
+    # Immune response
+    # ------------------------------------------------------------
+
+    if classification_2 == "KNOWN":
+
+        print(
+            "\n    ✓ IMMUNE MEMORY HIT"
+        )
+
+        print(
+            "    → Sandbox bypassed."
+        )
+
+        print(
+            "    → Fast-path response."
+        )
+
+        memory.record_reexposure(
+            recognition_2
+        )
+
+    elif classification_2 == "NEAR_MATCH":
+
+        print(
+            "\n    ~ NEAR MATCH"
+        )
+
+        print(
+            "    → Suspiciously similar behavior."
+        )
+
+        print(
+            "    → Sending to investigation."
+        )
+
+        sandbox_start = time.perf_counter()
+
+        investigated_antigen_2 = (
+            sandbox.investigate(
+                flow_data=flow_2,
+                anomaly_score=anomaly_score_2,
+                source_dataset=DATA_PATH.name,
+            )
+        )
+
+        sandbox_ms_2 = (
+            time.perf_counter()
+            - sandbox_start
+        ) * 1000.0
+
+        print(
+            f"    Investigation latency: "
+            f"{sandbox_ms_2:.3f} ms"
+        )
+
+        commit_result_2 = (
+            memory.commit_antigen(
+                investigated_antigen_2
+            )
+        )
+
+        print(
+            f"    Memory result: "
+            f"{commit_result_2['status']}"
+        )
+
+    else:
+
+        print(
+            "\n    ✗ NOVEL BEHAVIOR"
+        )
+
+        print(
+            "    → Sending to isolation chamber."
+        )
+
+        sandbox_start = time.perf_counter()
+
+        investigated_antigen_2 = (
+            sandbox.investigate(
+                flow_data=flow_2,
+                anomaly_score=anomaly_score_2,
+                source_dataset=DATA_PATH.name,
+            )
+        )
+
+        sandbox_ms_2 = (
+            time.perf_counter()
+            - sandbox_start
+        ) * 1000.0
+
+        print(
+            f"    Investigation latency: "
+            f"{sandbox_ms_2:.3f} ms"
+        )
+
+        commit_result_2 = (
+            memory.commit_antigen(
+                investigated_antigen_2
+            )
+        )
+
+        print(
+            f"    Memory result: "
+            f"{commit_result_2['status']}"
+        )
+
+    # ============================================================
+    # Final status
+    # ============================================================
+
+    print_separator()
+
+    print(
+        "[7] FINAL IMMUNE MEMORY STATUS"
+    )
+
+    print(
+        f"    Memories stored: "
+        f"{memory.count_memories()}"
+    )
+
+    print(
+        f"    Encoder version: "
+        f"{analyzer.encoder_version}"
+    )
+
+    print(
+        f"    Feature schema hash: "
+        f"{analyzer.feature_schema_hash}"
+    )
+
+    print_separator()
+
+    print(
+        "[ADIS] End-to-end immune loop completed."
+    )
+
+    print_separator()
+
+    memory.close()
+
+
+if __name__ == "__main__":
+    main()

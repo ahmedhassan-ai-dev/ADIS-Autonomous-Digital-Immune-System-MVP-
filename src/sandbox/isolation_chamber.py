@@ -1,44 +1,79 @@
 import time
-from typing import Dict, Any
-import numpy as np
+from typing import Dict, Any, Optional
 
-from src.analysis.threat_analyzer import BehavioralThreatAnalyzer, ThreatAntigen
+from src.analysis.threat_analyzer import (
+    BehavioralThreatAnalyzer,
+    ThreatAntigen,
+)
 
 
 class IsolationSandbox:
     """
-    Simulates a controlled deception / execution environment (Honeypot/Sandbox).
-    Validates suspicious traffic without contaminating the operational network.
+    MVP investigation chamber.
+
+    IMPORTANT:
+    This is a simulated flow-level investigation.
+    It does NOT execute malware, packets, or binaries.
     """
 
-    def __init__(self, analyzer: BehavioralThreatAnalyzer):
+    def __init__(
+        self,
+        analyzer: BehavioralThreatAnalyzer,
+        investigation_delay_ms: float = 10.0,
+    ):
         self.analyzer = analyzer
+        self.investigation_delay_ms = investigation_delay_ms
 
     def investigate(
         self,
-        event_id: str,
-        flow_dict: Dict[str, float],
-        raw_features: np.ndarray,
-        anomaly_score: float,
+        raw_features=None,
+        flow_data=None,
+        anomaly_score: Optional[float] = None,
+        source_dataset: Optional[str] = None,
     ) -> ThreatAntigen:
-        """
-        Executes an isolated dynamic investigation on suspicious flow traffic.
-        """
-        start_time = time.perf_counter()
 
-        # Simulated deep packet inspection & behavioral observation delay
-        time.sleep(0.01)
+        start = time.perf_counter()
+
+        # ---------------------------------------------------------
+        # Simulated isolation/investigation
+        # ---------------------------------------------------------
+
+        time.sleep(
+            self.investigation_delay_ms / 1000.0
+        )
 
         antigen = self.analyzer.analyze_and_extract(
-            antigen_id=event_id,
-            flow_dict=flow_dict,
             raw_features=raw_features,
+            flow_data=flow_data,
             anomaly_score=anomaly_score,
+            source_dataset=source_dataset,
         )
 
-        antigen.metadata["investigation_duration_ms"] = round(
-            (time.perf_counter() - start_time) * 1000, 3
+        investigation_duration_ms = (
+            time.perf_counter() - start
+        ) * 1000.0
+
+        # ---------------------------------------------------------
+        # Investigation metadata
+        # ---------------------------------------------------------
+
+        antigen.metadata.update(
+            {
+                "investigation_duration_ms":
+                    round(investigation_duration_ms, 3),
+
+                "investigation_mode":
+                    "flow_feature_simulation",
+
+                "isolation_status":
+                    "SIMULATED_ISOLATION",
+
+                "validation_status":
+                    "SIMULATED",
+
+                "validated":
+                    False,
+            }
         )
-        antigen.metadata["quarantine_status"] = "CONFIRMED_THREAT"
 
         return antigen

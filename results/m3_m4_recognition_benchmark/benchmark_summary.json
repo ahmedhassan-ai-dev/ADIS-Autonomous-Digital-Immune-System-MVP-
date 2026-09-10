@@ -1,0 +1,22 @@
+{
+  "encoder_version": "adis-behavioral-encoder-v2",
+  "embedding_dim": 32,
+  "memory_cells": 300,
+  "enrolled_families": [
+    "Bruteforce",
+    "DoS",
+    "WebAttacks",
+    "Botnet",
+    "Portscan",
+    "DDoS"
+  ],
+  "novel_family": "Infiltration",
+  "candidate_threshold": 0.75,
+  "closed_set_accuracy": 0.9293333333333333,
+  "closed_set_macro_f1": 0.9483353560581151,
+  "benign_false_match_rate": 0.133,
+  "novel_family_false_match_rate": 0.0,
+  "novel_family_rejection_rate": 1.0,
+  "approx_eer": 0.3033,
+  "approx_eer_threshold": 0.14
+}

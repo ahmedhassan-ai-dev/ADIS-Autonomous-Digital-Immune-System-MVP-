@@ -1,0 +1,10 @@
+,Bruteforce,DoS,WebAttacks,Botnet,Portscan,DDoS,Benign,Infiltration,UNKNOWN
+Bruteforce,240,0,7,0,0,0,0,0,3
+DoS,0,221,0,0,7,6,0,0,16
+WebAttacks,5,1,240,0,1,0,0,0,3
+Botnet,0,0,0,232,0,0,0,0,18
+Portscan,0,5,1,0,212,10,0,0,22
+DDoS,0,1,0,0,0,249,0,0,0
+Benign,21,35,38,32,2,5,0,0,867
+Infiltration,0,0,0,0,0,0,0,0,36
+UNKNOWN,0,0,0,0,0,0,0,0,0
