@@ -1,0 +1,16 @@
+{
+  "calibration_version": "adis-m4-threshold-calibration-v2",
+  "recommended_known_threshold": 0.92,
+  "known_acceptance_rate": 0.9894444444444445,
+  "benign_false_match_rate": 0.046,
+  "novel_rejection_rate": 1.0,
+  "precision": 0.9748221127531472,
+  "recall": 0.9894444444444445,
+  "f1": 0.982078853046595,
+  "balanced_accuracy": 0.9725214500214501,
+  "security_score": 0.9819777777777778,
+  "encoder_version": "adis-behavioral-encoder-v2",
+  "feature_schema_hash": "aee55fd98f19d60a0bcab57ca3607eff852e2e95c315f5207ab3d66a715ed320",
+  "embedding_dimension": 32,
+  "memory_cells": 1799
+}

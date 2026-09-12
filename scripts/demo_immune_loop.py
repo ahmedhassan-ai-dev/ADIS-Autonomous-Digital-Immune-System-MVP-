@@ -9,6 +9,7 @@ import pandas as pd
 from src.analysis.threat_analyzer import BehavioralThreatAnalyzer
 from src.sandbox.isolation_chamber import IsolationSandbox
 from src.memory.immune_memory import ImmuneMemory
+from src.recognition_policy import RecognitionPolicy
 
 
 # ================================================================
@@ -65,10 +66,9 @@ def clean_for_detector(df: pd.DataFrame, features):
 
     X = df[features].copy()
 
-    X = X.replace(
-        [np.inf, -np.inf],
-        np.nan,
-    )
+    X = X.replace([np.inf, -np.inf], np.nan)
+    X = X.infer_objects(copy=False)
+
 
     medians = X.median(
         numeric_only=True
@@ -153,7 +153,7 @@ def main():
     )
 
     # ------------------------------------------------------------
-    # Prepare demo memory
+    # Prepare demo memory & Recognition Policy
     # ------------------------------------------------------------
 
     if RESET_DEMO_MEMORY and DEMO_MEMORY_PATH.exists():
@@ -178,6 +178,17 @@ def main():
     print(
         f"    Existing memories: "
         f"{memory.count_memories()}"
+    )
+
+    recognition_policy = RecognitionPolicy()
+    print(
+        f"    Recognition policy: {recognition_policy.VERSION}"
+    )
+    print(
+        f"    Known threshold: {recognition_policy.known_threshold}"
+    )
+    print(
+        f"    Novel threshold: {recognition_policy.novel_threshold}"
     )
 
     # ------------------------------------------------------------
@@ -305,7 +316,7 @@ def main():
     )
 
     # ------------------------------------------------------------
-    # Immune memory recognition
+    # Immune memory recognition & Policy decision
     # ------------------------------------------------------------
 
     memory_start = time.perf_counter()
@@ -321,6 +332,9 @@ def main():
         - memory_start
     ) * 1000.0
 
+    similarity_1 = recognition_1["similarity"]
+    decision_1 = recognition_policy.classify(similarity_1)
+
     print(
         f"    Memory classification: "
         f"{recognition_1['classification']}"
@@ -328,7 +342,7 @@ def main():
 
     print(
         f"    Similarity: "
-        f"{recognition_1['similarity']:.6f}"
+        f"{similarity_1:.6f}"
     )
 
     print(
@@ -336,18 +350,43 @@ def main():
         f"{memory_ms:.3f} ms"
     )
 
+    print(
+        f"    Recognition policy: {decision_1.classification}"
+    )
+    print(
+        f"    Policy confidence: {decision_1.confidence:.4f}"
+    )
+
     # ------------------------------------------------------------
-    # Novel threat -> Sandbox
+    # Immune response based on Policy
     # ------------------------------------------------------------
 
-    if recognition_1["classification"] != "KNOWN":
+    if decision_1.classification == "KNOWN":
 
         print(
-            "\n    → Threat is not known."
+            "\n    ✓ IMMUNE MEMORY HIT"
+        )
+        print(
+            "    → Sandbox bypassed."
+        )
+        print(
+            "    → Fast-path response."
         )
 
+        memory.record_reexposure(
+            recognition_1
+        )
+
+    elif decision_1.classification == "UNCERTAIN":
+
         print(
-            "    → Sending to isolation chamber..."
+            "\n    ? WEAK IMMUNE MEMORY MATCH"
+        )
+        print(
+            "    → Investigation required."
+        )
+        print(
+            "    → Sandbox enabled."
         )
 
         sandbox_start = time.perf_counter()
@@ -380,9 +419,77 @@ def main():
             f"{sandbox_ms:.3f} ms"
         )
 
-        # --------------------------------------------------------
-        # Commit to immune memory
-        # --------------------------------------------------------
+        commit_start = time.perf_counter()
+
+        commit_result = (
+            memory.commit_antigen(
+                investigated_antigen
+            )
+        )
+
+        commit_ms = (
+            time.perf_counter()
+            - commit_start
+        ) * 1000.0
+
+        print(
+            "\n    → Antigen committed "
+            "to immune memory."
+        )
+
+        print(
+            f"    Commit status: "
+            f"{commit_result['status']}"
+        )
+
+        print(
+            f"    Memory ID: "
+            f"{commit_result['memory_id']}"
+        )
+
+        print(
+            f"    Commit latency: "
+            f"{commit_ms:.3f} ms"
+        )
+
+    else:
+
+        print(
+            "\n    → Threat is novel."
+        )
+        print(
+            "    → Sending to isolation chamber."
+        )
+
+        sandbox_start = time.perf_counter()
+
+        investigated_antigen = (
+            sandbox.investigate(
+                flow_data=flow_1,
+                anomaly_score=anomaly_score_1,
+                source_dataset=DATA_PATH.name,
+            )
+        )
+
+        sandbox_ms = (
+            time.perf_counter()
+            - sandbox_start
+        ) * 1000.0
+
+        print(
+            f"    Investigation mode: "
+            f"{investigated_antigen.metadata['investigation_mode']}"
+        )
+
+        print(
+            f"    Validation status: "
+            f"{investigated_antigen.metadata['validation_status']}"
+        )
+
+        print(
+            f"    Investigation latency: "
+            f"{sandbox_ms:.3f} ms"
+        )
 
         commit_start = time.perf_counter()
 
@@ -417,16 +524,6 @@ def main():
             f"{commit_ms:.3f} ms"
         )
 
-    else:
-
-        print(
-            "\n    → Already known."
-        )
-
-        memory.record_reexposure(
-            recognition_1
-        )
-
     # ============================================================
     # EXPOSURE #2
     # ============================================================
@@ -437,8 +534,6 @@ def main():
         "[6] EXPOSURE #2 — Re-exposure"
     )
 
-    # Pick another attack flow.
-    # We deliberately do NOT assume it will match.
     second_index = (
         5 if len(attack_flows) > 5
         else 1 if len(attack_flows) > 1
@@ -503,7 +598,7 @@ def main():
     )
 
     # ------------------------------------------------------------
-    # Memory recognition
+    # Memory recognition & Policy decision
     # ------------------------------------------------------------
 
     memory_start = time.perf_counter()
@@ -519,17 +614,12 @@ def main():
         - memory_start
     ) * 1000.0
 
-    classification_2 = (
-        recognition_2["classification"]
-    )
-
-    similarity_2 = (
-        recognition_2["similarity"]
-    )
+    similarity_2 = recognition_2["similarity"]
+    decision_2 = recognition_policy.classify(similarity_2)
 
     print(
-        f"    Classification: "
-        f"{classification_2}"
+        f"    Memory classification: "
+        f"{recognition_2['classification']}"
     )
 
     print(
@@ -542,11 +632,18 @@ def main():
         f"{memory_ms_2:.3f} ms"
     )
 
+    print(
+        f"    Recognition policy: {decision_2.classification}"
+    )
+    print(
+        f"    Policy confidence: {decision_2.confidence:.4f}"
+    )
+
     # ------------------------------------------------------------
-    # Immune response
+    # Immune response based on Policy
     # ------------------------------------------------------------
 
-    if classification_2 == "KNOWN":
+    if decision_2.classification == "KNOWN":
 
         print(
             "\n    ✓ IMMUNE MEMORY HIT"
@@ -564,18 +661,18 @@ def main():
             recognition_2
         )
 
-    elif classification_2 == "NEAR_MATCH":
+    elif decision_2.classification == "UNCERTAIN":
 
         print(
-            "\n    ~ NEAR MATCH"
+            "\n    ? WEAK IMMUNE MEMORY MATCH"
         )
 
         print(
-            "    → Suspiciously similar behavior."
+            "    → Investigation required."
         )
 
         print(
-            "    → Sending to investigation."
+            "    → Sandbox enabled."
         )
 
         sandbox_start = time.perf_counter()
@@ -612,7 +709,7 @@ def main():
     else:
 
         print(
-            "\n    ✗ NOVEL BEHAVIOR"
+            "\n    → Threat is novel."
         )
 
         print(
