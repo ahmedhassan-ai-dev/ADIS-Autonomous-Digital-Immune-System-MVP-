@@ -14,7 +14,7 @@
     "held_out_dataset": "Botnet-Friday",
     "training_rows": 263285,
     "test_rows": 26437,
-    "training_time_seconds": 5.831302100094035
+    "training_time_seconds": 5.332471000001533
   },
   {
     "roc_auc": 0.9458146841530053,
@@ -31,7 +31,7 @@
     "held_out_dataset": "Bruteforce-Tuesday",
     "training_rows": 255572,
     "test_rows": 34150,
-    "training_time_seconds": 5.206152899889275
+    "training_time_seconds": 5.54468029999407
   },
   {
     "roc_auc": 0.9837542767999999,
@@ -48,7 +48,7 @@
     "held_out_dataset": "DDoS-Friday",
     "training_rows": 239722,
     "test_rows": 50000,
-    "training_time_seconds": 5.193721299991012
+    "training_time_seconds": 4.8054143999906955
   },
   {
     "roc_auc": 0.9817059776,
@@ -65,7 +65,7 @@
     "held_out_dataset": "DoS-Wednesday",
     "training_rows": 239722,
     "test_rows": 50000,
-    "training_time_seconds": 4.03224810003303
+    "training_time_seconds": 3.8472010000114096
   },
   {
     "roc_auc": 0.8091738888888889,
@@ -82,7 +82,7 @@
     "held_out_dataset": "Infiltration-Thursday",
     "training_rows": 264686,
     "test_rows": 25036,
-    "training_time_seconds": 5.484722099965438
+    "training_time_seconds": 4.319413199991686
   },
   {
     "roc_auc": 0.8977404396728015,
@@ -99,7 +99,7 @@
     "held_out_dataset": "Portscan-Friday",
     "training_rows": 262766,
     "test_rows": 26956,
-    "training_time_seconds": 4.696489899884909
+    "training_time_seconds": 4.178095900002518
   },
   {
     "roc_auc": 0.9957638544097059,
@@ -116,6 +116,6 @@
     "held_out_dataset": "WebAttacks-Thursday",
     "training_rows": 262579,
     "test_rows": 27143,
-    "training_time_seconds": 4.474436099873856
+    "training_time_seconds": 3.7172744999988936
   }
 ]

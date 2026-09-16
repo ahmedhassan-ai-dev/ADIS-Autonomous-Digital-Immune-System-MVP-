@@ -13,7 +13,7 @@
         "fp": 386,
         "tn": 458445,
         "fn": 0,
-        "elapsed_seconds": 3.431233499897644
+        "elapsed_seconds": 1.8094565000064904
     },
     {
         "dataset": "Botnet-Friday",
@@ -29,7 +29,7 @@
         "fp": 120,
         "tn": 174481,
         "fn": 12,
-        "elapsed_seconds": 1.35857899999246
+        "elapsed_seconds": 0.6783802999998443
     },
     {
         "dataset": "Bruteforce-Tuesday",
@@ -45,7 +45,7 @@
         "fp": 284,
         "tn": 380280,
         "fn": 4,
-        "elapsed_seconds": 2.823427499970421
+        "elapsed_seconds": 1.5992861999984598
     },
     {
         "dataset": "DDoS-Friday",
@@ -61,7 +61,7 @@
         "fp": 232,
         "tn": 93018,
         "fn": 38,
-        "elapsed_seconds": 1.3528126999735832
+        "elapsed_seconds": 1.0281749999994645
     },
     {
         "dataset": "DoS-Wednesday",
@@ -77,7 +77,7 @@
         "fp": 423,
         "tn": 390812,
         "fn": 82,
-        "elapsed_seconds": 4.442619199864566
+        "elapsed_seconds": 2.5357782999926712
     },
     {
         "dataset": "Infiltration-Thursday",
@@ -93,7 +93,7 @@
         "fp": 342,
         "tn": 207252,
         "fn": 3,
-        "elapsed_seconds": 1.242569100111723
+        "elapsed_seconds": 0.8227240999985952
     },
     {
         "dataset": "Portscan-Friday",
@@ -109,7 +109,7 @@
         "fp": 691,
         "tn": 116875,
         "fn": 1,
-        "elapsed_seconds": 2.1344381999224424
+        "elapsed_seconds": 0.4821202000021003
     },
     {
         "dataset": "WebAttacks-Thursday",
@@ -125,6 +125,6 @@
         "fp": 141,
         "tn": 153536,
         "fn": 6,
-        "elapsed_seconds": 1.2561101999599487
+        "elapsed_seconds": 0.5956368999904953
     }
 ]
