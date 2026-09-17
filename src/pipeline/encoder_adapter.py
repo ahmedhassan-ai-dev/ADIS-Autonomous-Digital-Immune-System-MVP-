@@ -324,22 +324,14 @@ class BehavioralEncoderAdapter:
 
         df = self._prepare_flow(flow)
 
-        # Convert to float64 for sklearn preprocessing.
-        X = df[self.features].to_numpy(
-            dtype=np.float64
-        )
+        # Convert to float64 for sklearn preprocessing using DataFrame format to preserve feature names.
+        X = df[self.features].astype(np.float64)
 
         # ---------------------------------------------------------
         # Step 1 — log1p transformation
         # ---------------------------------------------------------
-        log_indices = [
-            self.features.index(feature)
-            for feature in self.log_features
-        ]
-
-        if log_indices:
-
-            log_values = X[:, log_indices]
+        if self.log_features:
+            log_values = X[self.log_features].to_numpy()
 
             # log1p requires values >= -1.
             if np.any(log_values < -1.0):
@@ -348,9 +340,7 @@ class BehavioralEncoderAdapter:
                     "log-transformed features."
                 )
 
-            X[:, log_indices] = np.log1p(
-                log_values
-            )
+            X[self.log_features] = np.log1p(log_values)
 
         # ---------------------------------------------------------
         # Step 2 — RobustScaler
@@ -360,10 +350,7 @@ class BehavioralEncoderAdapter:
         # ---------------------------------------------------------
         # Step 3 — PCA + whitening
         # ---------------------------------------------------------
-        X_embedding = self.pca.transform(
-            X_scaled
-        )
-
+        X_embedding = self.pca.transform(X_scaled)
         embedding = np.asarray(
             X_embedding[0],
             dtype=np.float32,
@@ -436,3 +423,4 @@ class BehavioralEncoderAdapter:
             "whiten": bool(self.encoder["whiten"]),
             "normalization": self.encoder["normalization"],
         }
+    
