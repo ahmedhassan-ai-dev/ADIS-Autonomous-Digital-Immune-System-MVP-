@@ -32,6 +32,22 @@ class ThreatAntigen:
 
     metadata: Dict[str, Any] = field(default_factory=dict)
 
+    @property
+    def behavior_family(self) -> Optional[str]:
+        return (
+            self.metadata.get("behavior_family")
+            if isinstance(self.metadata, dict)
+            else None
+        )
+
+    @property
+    def threat_type(self) -> Optional[str]:
+        return (
+            self.metadata.get("threat_type")
+            if isinstance(self.metadata, dict)
+            else None
+        )
+
 
 class BehavioralThreatAnalyzer:
     """
@@ -265,7 +281,8 @@ class BehavioralThreatAnalyzer:
         artifact_whiten = artifact.get("whiten")
 
         if artifact_whiten is not None:
-            actual_whiten = bool(getattr(self.pca, "whiten", False))
+            pca_transform = getattr(self.pca, "pca", self.pca)
+            actual_whiten = bool(getattr(pca_transform, "whiten", False))
 
             if actual_whiten != bool(artifact_whiten):
                 raise ValueError("Encoder whitening configuration mismatch.")
@@ -299,12 +316,7 @@ class BehavioralThreatAnalyzer:
         ],
     ) -> pd.DataFrame:
 
-        # ---------------------------------------------------------
-        # DataFrame
-        # ---------------------------------------------------------
-
         if isinstance(flow_data, pd.DataFrame):
-
             if len(flow_data) != 1:
                 raise ValueError(
                     "BehavioralThreatAnalyzer expects exactly one flow."
@@ -324,37 +336,20 @@ class BehavioralThreatAnalyzer:
                     + "\n".join(f"  - {x}" for x in missing)
                 )
 
-            # Explicitly enforce production feature order.
             df = df[self.features]
-
             return df
 
-        # ---------------------------------------------------------
-        # Series
-        # ---------------------------------------------------------
-
         if isinstance(flow_data, pd.Series):
-
             return self._prepare_dataframe(
                 flow_data.to_frame().T
             )
 
-        # ---------------------------------------------------------
-        # Dictionary
-        # ---------------------------------------------------------
-
         if isinstance(flow_data, dict):
-
             return self._prepare_dataframe(
                 pd.DataFrame([flow_data])
             )
 
-        # ---------------------------------------------------------
-        # Numpy / List
-        # ---------------------------------------------------------
-
         if isinstance(flow_data, (np.ndarray, list, tuple)):
-
             arr = np.asarray(flow_data, dtype=np.float64).reshape(-1)
 
             if len(arr) != self.input_dim:
@@ -389,50 +384,28 @@ class BehavioralThreatAnalyzer:
 
         df = self._prepare_dataframe(flow_data)
 
-        # Convert every feature to numeric while preserving
-        # the DataFrame feature names.
         df = df.apply(
             pd.to_numeric,
             errors="coerce",
         )
 
-        # Replace infinities with NaN.
         df = df.replace(
             [np.inf, -np.inf],
             np.nan,
         )
 
-        # ---------------------------------------------------------
-        # Median imputation
-        # ---------------------------------------------------------
-        for feature, median_value in zip(
-            self.features,
-            self.medians,
-        ):
+        for feature, median_value in zip(self.features, self.medians):
             if df[feature].isna().any():
                 df[feature] = df[feature].fillna(median_value)
 
-        # ---------------------------------------------------------
-        # Log transform
-        #
-        # MUST exactly match the training pipeline.
-        # ---------------------------------------------------------
         for feature in self.log_features:
             values = df[feature].to_numpy(dtype=np.float64)
             values = np.maximum(values, 0.0)
             df[feature] = np.log1p(values)
 
-        # Explicitly preserve production feature order.
         df = df[self.features]
 
-        # ---------------------------------------------------------
-        # Robust scaling
-        # ---------------------------------------------------------
         X_scaled = self.scaler.transform(df)
-
-        # ---------------------------------------------------------
-        # PCA
-        # ---------------------------------------------------------
         embedding = self.pca.transform(X_scaled)
 
         embedding = np.asarray(
@@ -440,9 +413,6 @@ class BehavioralThreatAnalyzer:
             dtype=np.float32,
         ).reshape(-1)
 
-        # ---------------------------------------------------------
-        # L2 normalization
-        # ---------------------------------------------------------
         norm = np.linalg.norm(embedding)
 
         if not np.isfinite(norm) or norm <= 1e-12:
@@ -458,74 +428,223 @@ class BehavioralThreatAnalyzer:
     # Behavior interpretation
     # =============================================================
 
-    def _infer_behavior_family(
-        self,
-        flow_data: Dict[str, Any],
-    ) -> Dict[str, Any]:
+    def _infer_behavior_family(self, flow: dict) -> dict:
         """
-        Conservative behavioral interpretation.
+        Infer a conservative behavioral family from flow-level evidence.
 
         IMPORTANT:
-        We intentionally do NOT claim exact MITRE ATT&CK technique
-        attribution because the current CIC-IDS2017 no-metadata
-        representation does not provide enough context such as
-        destination port, process information, authentication logs,
-        etc.
+        - Ground-truth labels are NEVER used here.
+        - Source/Destination IP/Port/Timestamp are not required.
+        - Classification is intentionally conservative.
+        - When evidence is insufficient, return a generic anomaly family.
         """
+        
+        # Clean up CIC-IDS2017 specific spaces from column names to ensure gets work correctly
+        clean_flow = {str(k).strip(): v for k, v in flow.items()}
 
-        def get(name, default=0.0):
-            value = flow_data.get(name, default)
+        def num(name: str, default: float = 0.0) -> float:
+            value = clean_flow.get(name, default)
 
             try:
                 value = float(value)
-
-                if not np.isfinite(value):
-                    return default
-
-                return value
-
             except (TypeError, ValueError):
                 return default
 
-        packet_rate = get("Flow Packets/s")
-        byte_rate = get("Flow Bytes/s")
-        fwd_packets = get("Total Fwd Packets")
-        bwd_packets = get("Total Backward Packets")
-        syn_flags = get("SYN Flag Count")
-        rst_flags = get("RST Flag Count")
-        duration = get("Flow Duration")
+            if not np.isfinite(value):
+                return default
+
+            return value
+
+        packet_rate = num("Flow Packets/s")
+        byte_rate = num("Flow Bytes/s")
+
+        fwd_packets = num("Total Fwd Packets")
+        bwd_packets = num("Total Backward Packets")
+
+        fwd_packet_rate = num("Fwd Packets/s")
+        bwd_packet_rate = num("Bwd Packets/s")
+
+        flow_duration = num("Flow Duration")
+
+        syn_flags = num("SYN Flag Count")
+        rst_flags = num("RST Flag Count")
+        ack_flags = num("ACK Flag Count")
+        fin_flags = num("FIN Flag Count")
+        psh_flags = num("PSH Flag Count")
+
+        total_packets = fwd_packets + bwd_packets
+
+        # -----------------------------------------------------
+        # Derived behavioral signals
+        # -----------------------------------------------------
+
+        packet_direction_ratio = (
+            fwd_packets / max(bwd_packets, 1.0)
+        )
+
+        response_ratio = (
+            bwd_packets / max(fwd_packets, 1.0)
+        )
+
+        flag_total = (
+            syn_flags
+            + rst_flags
+            + ack_flags
+            + fin_flags
+            + psh_flags
+        )
+
+        syn_rst_pattern = syn_flags > 0 and rst_flags > 0
+
+        asymmetric_flow = (
+            packet_direction_ratio >= 5.0
+            or response_ratio >= 5.0
+        )
+
+        # -----------------------------------------------------
+        # Evidence object
+        # -----------------------------------------------------
 
         evidence = {
             "flow_packet_rate": packet_rate,
             "flow_byte_rate": byte_rate,
             "forward_packets": fwd_packets,
             "backward_packets": bwd_packets,
+            "forward_packet_rate": fwd_packet_rate,
+            "backward_packet_rate": bwd_packet_rate,
+            "flow_duration": flow_duration,
             "syn_flags": syn_flags,
             "rst_flags": rst_flags,
-            "flow_duration": duration,
+            "ack_flags": ack_flags,
+            "fin_flags": fin_flags,
+            "psh_flags": psh_flags,
+            "total_packets": total_packets,
+            "packet_direction_ratio": packet_direction_ratio,
+            "response_ratio": response_ratio,
+            "flag_total": flag_total,
         }
 
-        # Broad behavioral families only.
-        if packet_rate > 10000:
-            family = "high_rate_network_activity"
+        # -----------------------------------------------------
+        # 1. High-rate network activity
+        # -----------------------------------------------------
 
-        elif packet_rate > 5000 and syn_flags > 0:
-            family = "high_rate_connection_attempts"
+        if packet_rate >= 10000:
+            return {
+                "behavior_family": "high_rate_network_activity",
+                "threat_type": "Denial-of-Service Candidate",
+                "classification_confidence": "high",
+                "classification_reason": (
+                    "Extremely high flow packet rate indicates "
+                    "high-rate network activity."
+                ),
+                "evidence": evidence,
+            }
 
-        elif syn_flags > 0 and rst_flags > 0:
-            family = "connection_probe_candidate"
+        # -----------------------------------------------------
+        # 2. High-rate connection attempts
+        # -----------------------------------------------------
 
-        elif fwd_packets > 500 or bwd_packets > 500:
-            family = "high_volume_flow"
+        if packet_rate >= 5000 and syn_flags > 0:
+            return {
+                "behavior_family": "high_rate_connection_attempts",
+                "threat_type": "Reconnaissance / Connection Flood Candidate",
+                "classification_confidence": "high",
+                "classification_reason": (
+                    "High packet rate combined with SYN activity "
+                    "indicates repeated connection attempts."
+                ),
+                "evidence": evidence,
+            }
 
-        elif byte_rate > 1_000_000:
-            family = "high_bandwidth_flow"
+        # -----------------------------------------------------
+        # 3. Connection probing
+        # -----------------------------------------------------
 
-        else:
-            family = "anomalous_network_behavior"
+        if (
+            syn_rst_pattern
+            and total_packets <= 20
+        ):
+            return {
+                "behavior_family": "connection_probe_candidate",
+                "threat_type": "Reconnaissance Candidate",
+                "classification_confidence": "medium",
+                "classification_reason": (
+                    "SYN/RST activity with a low packet-count flow "
+                    "is consistent with connection probing behavior."
+                ),
+                "evidence": evidence,
+            }
+
+        # -----------------------------------------------------
+        # 4. Repetitive / asymmetric connection behavior
+        # -----------------------------------------------------
+
+        if (
+            total_packets >= 20
+            and (
+                packet_direction_ratio >= 8.0
+                or response_ratio >= 8.0
+            )
+        ):
+            return {
+                "behavior_family": "repetitive_connection_behavior",
+                "threat_type": "Repeated Connection Activity",
+                "classification_confidence": "medium",
+                "classification_reason": (
+                    "Strong directional packet imbalance combined "
+                    "with repeated packet activity."
+                ),
+                "evidence": evidence,
+            }
+
+        # -----------------------------------------------------
+        # 5. High-volume flow
+        # -----------------------------------------------------
+
+        if (
+            fwd_packets > 500
+            or bwd_packets > 500
+            or total_packets > 1000
+        ):
+            return {
+                "behavior_family": "high_volume_flow",
+                "threat_type": "High-Volume Network Activity",
+                "classification_confidence": "medium",
+                "classification_reason": (
+                    "Large packet volume indicates unusually "
+                    "high-volume network activity."
+                ),
+                "evidence": evidence,
+            }
+
+        # -----------------------------------------------------
+        # 6. High-bandwidth flow
+        # -----------------------------------------------------
+
+        if byte_rate >= 1_000_000:
+            return {
+                "behavior_family": "high_bandwidth_flow",
+                "threat_type": "High-Bandwidth Network Activity",
+                "classification_confidence": "medium",
+                "classification_reason": (
+                    "High byte rate indicates unusually high "
+                    "bandwidth consumption."
+                ),
+                "evidence": evidence,
+            }
+
+        # -----------------------------------------------------
+        # 7. Generic anomalous behavior
+        # -----------------------------------------------------
 
         return {
-            "behavior_family": family,
+            "behavior_family": "anomalous_network_behavior",
+            "threat_type": None,
+            "classification_confidence": "low",
+            "classification_reason": (
+                "Available flow-level evidence is insufficient "
+                "for a more specific behavioral classification."
+            ),
             "evidence": evidence,
         }
 
@@ -618,18 +737,68 @@ class BehavioralThreatAnalyzer:
         # Behavioral interpretation
         # ---------------------------------------------------------
 
-        behavior = self._infer_behavior_family(flow_dict)
+        classification = self._infer_behavior_family(flow_dict)
+
+        behavior_family = classification["behavior_family"]
+        threat_type = classification["threat_type"]
+        classification_confidence = classification["classification_confidence"]
+        classification_reason = classification["classification_reason"]
+        behavior_evidence = classification["evidence"]
 
         severity = self._severity_from_anomaly_score(
             anomaly_score
         )
 
         # ---------------------------------------------------------
-        # Conservative ATT&CK representation
+        # Behavioral technique representation
         # ---------------------------------------------------------
 
-        technique_id = "UNMAPPED"
-        technique_name = "Unmapped anomalous network behavior"
+        technique_map = {
+            "high_rate_network_activity": (
+                "DOS-HIGH-RATE",
+                "High-rate denial-of-service candidate",
+                "medium",
+            ),
+            "high_rate_connection_attempts": (
+                "RECON-CONNECTION-FLOOD",
+                "High-rate connection attempt candidate",
+                "medium",
+            ),
+            "connection_probe_candidate": (
+                "RECON-CONNECTION",
+                "Connection probing candidate",
+                "medium",
+            ),
+            "high_volume_flow": (
+                "HIGH-VOLUME-NETWORK",
+                "High-volume network activity",
+                "low",
+            ),
+            "high_bandwidth_flow": (
+                "HIGH-BANDWIDTH-NETWORK",
+                "High-bandwidth network activity",
+                "low",
+            ),
+            "repetitive_connection_behavior": (
+                "REPEATED-CONNECTION",
+                "Repeated connection behavior",
+                "low",
+            ),
+        }
+
+        (
+            technique_id,
+            technique_name,
+            technique_confidence,
+        ) = technique_map.get(
+            behavior_family,
+            (
+                "UNMAPPED",
+                "Unmapped anomalous network behavior",
+                "not_attributed",
+            ),
+        )
+        
         tactic = "UNKNOWN"
 
         # ---------------------------------------------------------
@@ -645,13 +814,17 @@ class BehavioralThreatAnalyzer:
 
             "anomaly_score": anomaly_score,
 
-            "behavior_family": behavior["behavior_family"],
-            "behavior_evidence": behavior["evidence"],
+            "behavior_family": behavior_family,
+            "behavior_evidence": behavior_evidence,
+
+            "threat_type": threat_type,
+            "classification_confidence": classification_confidence,
+            "classification_reason": classification_reason,
 
             "source_dataset": source_dataset,
 
             "attribution_status": "behavioral_candidate",
-            "technique_confidence": "not_attributed",
+            "technique_confidence": technique_confidence,
 
             "protocol": flow_dict.get("Protocol"),
             "flow_duration": flow_dict.get("Flow Duration"),

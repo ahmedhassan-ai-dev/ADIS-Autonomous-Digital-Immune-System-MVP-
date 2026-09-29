@@ -1,0 +1,58 @@
+{
+  "run_id": "aa046318-fb99-4359-9b52-1319eabc53ac",
+  "timestamp": 1790650198.6640124,
+  "mode": "m10_final_end_to_end",
+  "components": {
+    "detector_model": "C:\\Dev\\ADIS-Autonomous-Digital-Immune-System-MVP-\\models\\merged_binary_detector.joblib",
+    "behavioral_encoder": "C:\\Dev\\ADIS-Autonomous-Digital-Immune-System-MVP-\\models\\behavioral_encoder.joblib",
+    "memory_path": "C:\\Dev\\ADIS-Autonomous-Digital-Immune-System-MVP-\\models\\immune_memory_m10_demo",
+    "encoder_version": "adis-behavioral-encoder-v3-supervised",
+    "embedding_dim": 32
+  },
+  "detection": {
+    "detector_decision": "ATTACK",
+    "anomaly_score": 0.9776271144243693
+  },
+  "behavior": {
+    "behavior_family": "anomalous_network_behavior",
+    "embedding_dimension": 32
+  },
+  "threat": {
+    "behavior_family": "anomalous_network_behavior",
+    "threat_type": "Unmapped anomalous network behavior",
+    "technique_id": "UNMAPPED",
+    "tactic": "UNKNOWN",
+    "severity": "CRITICAL"
+  },
+  "recognition": {
+    "classification": "NOVEL",
+    "similarity": 0.0,
+    "policy_action": "ISOLATE",
+    "memory_id": null
+  },
+  "risk": {
+    "risk_score": 0.9776271144243693,
+    "severity": "CRITICAL",
+    "factors": {
+      "anomaly_score": 0.9776271144243693
+    },
+    "fallback": true
+  },
+  "decision": {
+    "action": "ISOLATE",
+    "fallback": true
+  },
+  "response": {
+    "status": "OBSERVED",
+    "action": "ISOLATE",
+    "isolation": null
+  },
+  "investigation": null,
+  "latency_ms": {
+    "detector": 2.9987000161781907,
+    "behavioral_analysis": 65.03689999226481,
+    "memory": 0.6405999884009361,
+    "total": 68.67619999684393
+  },
+  "memory_count": 0
+}

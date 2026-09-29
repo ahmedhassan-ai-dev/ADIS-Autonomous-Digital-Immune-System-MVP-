@@ -59,6 +59,12 @@ class ThreatContext:
     from final decision making.
     """
 
+    behavior_family: Optional[str] = None
+    threat_type: Optional[str] = None
+    classification_confidence: Optional[float] = None
+    classification_reason: Optional[str] = None
+    behavior_evidence: Optional[Dict[str, Any]] = None
+
     technique_id: str = "UNMAPPED"
     technique_name: str = "Unmapped anomalous network behavior"
     tactic: str = "UNKNOWN"
@@ -139,13 +145,18 @@ class SecurityContext:
             },
 
             "threat": {
+                "behavior_family": self.threat.behavior_family,
+                "threat_type": self.threat.threat_type,
+                "classification_confidence": self.threat.classification_confidence,
+                "classification_reason": self.threat.classification_reason,
+                "behavior_evidence": self.threat.behavior_evidence,
+                "metadata": self.threat.metadata,
                 "technique_id": self.threat.technique_id,
                 "technique_name": self.threat.technique_name,
                 "tactic": self.threat.tactic,
                 "severity": self.threat.severity,
                 "attribution_status": self.threat.attribution_status,
                 "technique_confidence": self.threat.technique_confidence,
-                "metadata": self.threat.metadata,
             },
 
             "source_dataset": self.source_dataset,

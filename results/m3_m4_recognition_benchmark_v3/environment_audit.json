@@ -1,0 +1,35 @@
+{
+  "artifact": {
+    "embedding_dim": 32,
+    "encoder_version": "adis-behavioral-encoder-v3-supervised",
+    "features": 77,
+    "novel_family_excluded": "Infiltration",
+    "path": "C:\\Dev\\ADIS-Autonomous-Digital-Immune-System-MVP-\\models\\behavioral_encoder.joblib",
+    "random_state": 42,
+    "representation_type": "supervised_lda_plus_pca",
+    "schema_hash": "aee55fd98f19d60a0bcab57ca3607eff852e2e95c315f5207ab3d66a715ed320",
+    "sha256": "eb7081cfc1d0114d0d0e16d597edc474ae03a0c13f53b652b3f58cc1d90eb413",
+    "training_families": [
+      "benign",
+      "botnet",
+      "bruteforce",
+      "ddos",
+      "dos",
+      "portscan",
+      "webattacks"
+    ],
+    "training_rows": 35748,
+    "validation_rows": 8938
+  },
+  "joblib_version": "1.6.0",
+  "m4_policy": {
+    "known_threshold": 0.9,
+    "near_threshold": 0.75,
+    "policy_version": "adis-m4-recognition-policy-v1"
+  },
+  "numpy_version": "2.5.3",
+  "pandas_version": "3.0.5",
+  "platform": "Windows-11-10.0.22631-SP0",
+  "python_version": "3.13.15",
+  "scikit_learn_version": "1.9.1"
+}

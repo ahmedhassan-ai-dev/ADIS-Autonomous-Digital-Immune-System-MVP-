@@ -1,0 +1,102 @@
+{
+  "benchmark": "M3/M4 v3 leakage-safe",
+  "encoder_version": "adis-behavioral-encoder-v3-supervised",
+  "representation_type": "supervised_lda_plus_pca",
+  "training_families": [
+    "benign",
+    "botnet",
+    "bruteforce",
+    "ddos",
+    "dos",
+    "portscan",
+    "webattacks"
+  ],
+  "novel_family": "Infiltration",
+  "training_rows": 35748,
+  "validation_rows": 8938,
+  "test_rows": 2236,
+  "threshold_analysis": [
+    {
+      "threshold": 0.5,
+      "known_recognition_rate": 0.9966666666666667,
+      "benign_far": 0.734,
+      "novel_rejection_rate": 0.027777777777777776
+    },
+    {
+      "threshold": 0.6,
+      "known_recognition_rate": 0.9933333333333333,
+      "benign_far": 0.423,
+      "novel_rejection_rate": 0.19444444444444445
+    },
+    {
+      "threshold": 0.65,
+      "known_recognition_rate": 0.9816666666666667,
+      "benign_far": 0.313,
+      "novel_rejection_rate": 0.25
+    },
+    {
+      "threshold": 0.7,
+      "known_recognition_rate": 0.975,
+      "benign_far": 0.24,
+      "novel_rejection_rate": 0.4166666666666667
+    },
+    {
+      "threshold": 0.75,
+      "known_recognition_rate": 0.9733333333333334,
+      "benign_far": 0.196,
+      "novel_rejection_rate": 0.7777777777777778
+    },
+    {
+      "threshold": 0.8,
+      "known_recognition_rate": 0.9641666666666666,
+      "benign_far": 0.143,
+      "novel_rejection_rate": 0.8888888888888888
+    },
+    {
+      "threshold": 0.85,
+      "known_recognition_rate": 0.9633333333333334,
+      "benign_far": 0.116,
+      "novel_rejection_rate": 0.9722222222222222
+    },
+    {
+      "threshold": 0.9,
+      "known_recognition_rate": 0.9558333333333333,
+      "benign_far": 0.086,
+      "novel_rejection_rate": 1.0
+    },
+    {
+      "threshold": 0.92,
+      "known_recognition_rate": 0.9525,
+      "benign_far": 0.077,
+      "novel_rejection_rate": 1.0
+    },
+    {
+      "threshold": 0.95,
+      "known_recognition_rate": 0.9333333333333333,
+      "benign_far": 0.062,
+      "novel_rejection_rate": 1.0
+    }
+  ],
+  "genuine": {
+    "median": 0.9147831201553345,
+    "p05": 0.24818465411663057,
+    "p95": 0.9999702602624894
+  },
+  "impostor": {
+    "median": -0.0858536958694458,
+    "p05": -0.5189122408628464,
+    "p95": 0.4030487954616546
+  },
+  "eer": {
+    "threshold": 0.387,
+    "far": 0.0676,
+    "frr": 0.0673,
+    "gap": 0.0002999999999999947
+  },
+  "notes": [
+    "Infiltration is excluded from M3 training.",
+    "Benign is a supervised training class but is never enrolled in M4 memory.",
+    "Exact M3 training rows are excluded from benchmark evaluation.",
+    "M4 memory mechanism is unchanged."
+  ]
+}

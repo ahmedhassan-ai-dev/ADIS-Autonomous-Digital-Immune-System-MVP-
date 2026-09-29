@@ -1,4 +1,5 @@
 from src.analysis.risk_engine import RiskEngine
+
 from src.context.security_context import (
     SecurityContext,
     DetectionContext,
@@ -24,21 +25,19 @@ def make_context(
             classification=classification,
             similarity=0.61,
             policy_classification=classification,
-            policy_action=(
-                "ISOLATE"
-                if classification == "NOVEL"
-                else "INVESTIGATE"
-            ),
+            policy_action="ISOLATE"
+            if classification == "NOVEL"
+            else "INVESTIGATE",
             policy_confidence=confidence,
         ),
         behavior=BehaviorContext(
             behavior_family="anomalous_network_behavior",
-            evidence={"test": True},
+            evidence={
+                "test": True,
+            },
             embedding_dimension=32,
             encoder_version="adis-behavioral-encoder-v2",
-            feature_schema_hash=(
-                "aee55fd98f19d60a0bcab57ca3607eff852e2e95c315f5207ab3d66a715ed320"
-            ),
+            feature_schema_hash="aee55fd98f19d60a0bcab57ca3607eff852e2e95c315f5207ab3d66a715ed320",
         ),
         threat=ThreatContext(
             technique_id="UNMAPPED",
@@ -52,13 +51,17 @@ def make_context(
 
 
 def main():
+
     print("=" * 80)
     print("[ADIS] M5.2 — Risk Engine Test")
     print("=" * 80)
 
     engine = RiskEngine()
 
-    # Test 1: Novel + Critical + Very High Anomaly
+    # ---------------------------------------------------------
+    # Test 1 — Novel + Critical + Very High Anomaly
+    # ---------------------------------------------------------
+
     context = make_context(
         anomaly=0.9776,
         classification="NOVEL",
@@ -83,7 +86,10 @@ def main():
 
     print("    ✓ High-risk assessment correct")
 
-    # Test 2: Known + Low + Low anomaly
+    # ---------------------------------------------------------
+    # Test 2 — Known + Low + Low anomaly
+    # ---------------------------------------------------------
+
     context = make_context(
         anomaly=0.20,
         classification="KNOWN",
@@ -105,7 +111,10 @@ def main():
 
     print("    ✓ Low-risk assessment correct")
 
-    # Test 3: Uncertain behavior
+    # ---------------------------------------------------------
+    # Test 3 — Uncertain behavior
+    # ---------------------------------------------------------
+
     context = make_context(
         anomaly=0.65,
         classification="UNCERTAIN",
@@ -126,8 +135,12 @@ def main():
 
     print("    ✓ Uncertain assessment correct")
 
-    # Test 4: Missing values
+    # ---------------------------------------------------------
+    # Test 4 — Missing values
+    # ---------------------------------------------------------
+
     context = SecurityContext()
+
     result = engine.assess(context)
 
     print("\n[4] Missing/unknown context")
@@ -139,7 +152,10 @@ def main():
 
     print("    ✓ Missing-value handling correct")
 
-    # Test 5: Weight validation
+    # ---------------------------------------------------------
+    # Test 5 — Weight validation
+    # ---------------------------------------------------------
+
     try:
         RiskEngine(
             anomaly_weight=0.50,
@@ -148,13 +164,18 @@ def main():
             confidence_weight=0.20,
         )
 
-        raise AssertionError("Invalid weights were accepted")
+        raise AssertionError(
+            "Invalid weights were accepted"
+        )
 
     except ValueError:
         print("\n[5] Weight validation")
         print("    ✓ Invalid weight configuration rejected")
 
-    # Test 6: JSON-safe representation
+    # ---------------------------------------------------------
+    # JSON-safe representation
+    # ---------------------------------------------------------
+
     data = result.to_dict()
 
     assert isinstance(data, dict)

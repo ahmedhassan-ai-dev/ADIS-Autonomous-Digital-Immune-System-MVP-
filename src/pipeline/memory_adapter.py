@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict, Optional
+from types import SimpleNamespace
 
 import numpy as np
 
 from src.memory.immune_memory import ImmuneMemory
 from src.pipeline.contracts import (
-    KNOWN_THRESHOLD,
-    NEAR_THRESHOLD,
     EMBEDDING_DIM,
     ENCODER_VERSION,
     FEATURE_SCHEMA_HASH,
     RecognitionResult,
 )
+from src.pipeline.m4_policy import M4RecognitionPolicy
 
 
 class ImmuneMemoryAdapter:
@@ -25,10 +25,10 @@ class ImmuneMemoryAdapter:
     - Enforce the frozen ADIS encoder/schema contract.
     - Normalize and validate embeddings.
     - Perform recognition.
-    - Re-map raw memory results to the frozen ADIS policy:
+    - Re-map raw memory results to the frozen ADIS policy (M4 Policy v1):
           < 0.75       -> NOVEL
-          0.75 - 0.92  -> UNCERTAIN
-          >= 0.92      -> KNOWN
+          0.75 - 0.90  -> UNCERTAIN
+          >= 0.90      -> KNOWN
     - Commit validated novel threats.
     - Record re-exposures.
     """
@@ -44,14 +44,13 @@ class ImmuneMemoryAdapter:
 
         self.storage_path = Path(storage_path)
         self.top_k = int(top_k)
+        self.policy = M4RecognitionPolicy()
 
         self.memory = ImmuneMemory(
             storage_path=self.storage_path,
             embedding_dim=EMBEDDING_DIM,
-            known_threshold=KNOWN_THRESHOLD,
-            # Keep the underlying memory compatible with the
-            # frozen ADIS recognition boundary.
-            near_threshold=NEAR_THRESHOLD,
+            known_threshold=self.policy.known_threshold,
+            near_threshold=self.policy.near_threshold,
             encoder_version=ENCODER_VERSION,
             feature_schema_hash=FEATURE_SCHEMA_HASH,
         )
@@ -72,17 +71,17 @@ class ImmuneMemoryAdapter:
                 f"actual={self.memory.embedding_dim}"
             )
 
-        if float(self.memory.known_threshold) != KNOWN_THRESHOLD:
+        if float(self.memory.known_threshold) != self.policy.known_threshold:
             raise ValueError(
                 "Immune Memory known threshold mismatch: "
-                f"expected={KNOWN_THRESHOLD}, "
+                f"expected={self.policy.known_threshold}, "
                 f"actual={self.memory.known_threshold}"
             )
 
-        if float(self.memory.near_threshold) != NEAR_THRESHOLD:
+        if float(self.memory.near_threshold) != self.policy.near_threshold:
             raise ValueError(
                 "Immune Memory near threshold mismatch: "
-                f"expected={NEAR_THRESHOLD}, "
+                f"expected={self.policy.near_threshold}, "
                 f"actual={self.memory.near_threshold}"
             )
 
@@ -148,14 +147,14 @@ class ImmuneMemoryAdapter:
         """
         Recognize a behavioral embedding against Immune Memory.
 
-        Production classification:
+        Production classification (M4 Policy v1):
             similarity < 0.75
                 -> NOVEL
 
-            0.75 <= similarity < 0.92
+            0.75 <= similarity < 0.90
                 -> UNCERTAIN
 
-            similarity >= 0.92
+            similarity >= 0.90
                 -> KNOWN
         """
 
@@ -169,29 +168,25 @@ class ImmuneMemoryAdapter:
         similarity = float(
             raw_result.get("similarity", 0.0)
         )
+        similarity = max(-1.0, min(1.0, similarity))
 
-        memory_id = raw_result.get("memory_id")
+        raw_memory_id = raw_result.get("memory_id")
+        if isinstance(raw_memory_id, dict):
+            memory_id = raw_memory_id.get("memory_id")
+        else:
+            memory_id = raw_memory_id
 
         # --------------------------------------------------------------
         # Frozen ADIS recognition policy
         # --------------------------------------------------------------
 
-        if similarity >= KNOWN_THRESHOLD:
+        classification, policy_action = self.policy.classify(
+            similarity
+        )
 
-            classification = "KNOWN"
-            policy_action = "FAST_PATH"
+        if classification == "KNOWN":
             policy_confidence = similarity
-
-        elif similarity >= NEAR_THRESHOLD:
-
-            classification = "UNCERTAIN"
-            policy_action = "INVESTIGATE"
-            policy_confidence = similarity
-
         else:
-
-            classification = "NOVEL"
-            policy_action = "ISOLATE"
             policy_confidence = max(
                 0.0,
                 1.0 - similarity,
@@ -217,8 +212,9 @@ class ImmuneMemoryAdapter:
                 "candidate_count": len(
                     raw_result.get("candidates", [])
                 ),
-                "known_threshold": KNOWN_THRESHOLD,
-                "near_threshold": NEAR_THRESHOLD,
+                "known_threshold": self.policy.known_threshold,
+                "near_threshold": self.policy.near_threshold,
+                "policy_version": self.policy.policy_version,
                 "encoder_version": ENCODER_VERSION,
                 "feature_schema_hash": FEATURE_SCHEMA_HASH,
             },
@@ -260,6 +256,79 @@ class ImmuneMemoryAdapter:
             antigen=antigen,
             source_dataset=source_dataset,
             validated=validated,
+        )
+
+    # ------------------------------------------------------------------
+    # Benchmark Enrollment
+    # ------------------------------------------------------------------
+
+    def enroll_embedding(
+        self,
+        embedding: list[float] | np.ndarray,
+        behavior_family: str,
+        source_dataset: str = "M9_BENCHMARK_ENROLLMENT",
+    ) -> Dict[str, Any]:
+        """
+        Enroll a benchmark prototype into persistent Immune Memory.
+
+        This is intentionally a thin adapter-level helper for benchmark
+        and calibration workflows. It does not bypass ImmuneMemory.
+
+        The embedding is wrapped as a minimal antigen-compatible object
+        and committed through the normal persistent memory path.
+        """
+
+        vector = self._validate_embedding(embedding)
+
+        if not behavior_family:
+            raise ValueError(
+                "behavior_family must not be empty."
+            )
+
+        antigen = SimpleNamespace(
+            antigen_id=(
+                f"m9-prototype-{behavior_family.lower()}"
+            ),
+            technique_id="M9_PROTOTYPE",
+            technique_name="M9 Benchmark Prototype",
+            tactic="BENCHMARK",
+            severity="BENCHMARK",
+            embedding=vector.tolist(),
+            metadata={
+                "behavior_family": behavior_family,
+                "representation_version": ENCODER_VERSION,
+                "source": source_dataset,
+                "anomaly_score": 1.0,
+            },
+        )
+
+        return self.memory.commit_antigen(
+            antigen=antigen,
+            source_dataset=source_dataset,
+            validated=True,
+        )
+
+    # ------------------------------------------------------------------
+    # Benchmark Search
+    # ------------------------------------------------------------------
+
+    def search_candidates(
+        self,
+        embedding: list[float] | np.ndarray,
+    ) -> Dict[str, Any]:
+        """
+        Return raw compatible memory candidates for benchmark analysis.
+
+        Production recognition should continue using recognize().
+        This method exists so evaluation code can inspect the matched
+        family and similarity without reaching directly into Qdrant.
+        """
+
+        vector = self._validate_embedding(embedding)
+
+        return self.memory.recognize_threat(
+            query_vector=vector,
+            top_k=self.top_k,
         )
 
     # ------------------------------------------------------------------
@@ -323,6 +392,9 @@ class ImmuneMemoryAdapter:
             self.memory.count_memories()
         )
 
+    def close(self) -> None:
+        self.memory.close()
+
     # ------------------------------------------------------------------
     # Information
     # ------------------------------------------------------------------
@@ -334,8 +406,9 @@ class ImmuneMemoryAdapter:
             "backend": "Qdrant",
             "mode": "local_persistent",
             "embedding_dimension": EMBEDDING_DIM,
-            "known_threshold": KNOWN_THRESHOLD,
-            "near_threshold": NEAR_THRESHOLD,
+            "known_threshold": self.policy.known_threshold,
+            "near_threshold": self.policy.near_threshold,
+            "policy_version": self.policy.policy_version,
             "encoder_version": ENCODER_VERSION,
             "feature_schema_hash": FEATURE_SCHEMA_HASH,
             "top_k": self.top_k,

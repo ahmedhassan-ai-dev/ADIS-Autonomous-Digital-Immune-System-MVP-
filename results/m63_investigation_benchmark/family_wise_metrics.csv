@@ -1,0 +1,16 @@
+family,samples,predicted_as_family,correct,accuracy_within_family,precision,recall,f1
+Benign,3000,0,0,0.0,0.0,0.0,0.0
+Botnet,300,0,0,0.0,0.0,0.0,0.0
+Bruteforce,900,0,0,0.0,0.0,0.0,0.0
+DDoS,300,0,0,0.0,0.0,0.0,0.0
+DoS,1200,0,0,0.0,0.0,0.0,0.0
+Heartbleed,11,0,0,0.0,0.0,0.0,0.0
+Infiltration,36,0,0,0.0,0.0,0.0,0.0
+Portscan,300,0,0,0.0,0.0,0.0,0.0
+WebAttacks,621,0,0,0.0,0.0,0.0,0.0
+anomalous_network_behavior,0,5424,0,0.0,0.0,0.0,0.0
+high_bandwidth_flow,0,17,0,0.0,0.0,0.0,0.0
+high_rate_connection_attempts,0,16,0,0.0,0.0,0.0,0.0
+high_rate_network_activity,0,1173,0,0.0,0.0,0.0,0.0
+high_volume_flow,0,27,0,0.0,0.0,0.0,0.0
+repetitive_connection_behavior,0,11,0,0.0,0.0,0.0,0.0

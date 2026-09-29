@@ -1,0 +1,97 @@
+{
+  "benchmark": "M9",
+  "description": "Large-scale persistent immune memory recognition benchmark",
+  "total_flows": 8000,
+  "known_families_enrolled": [
+    "BOTNET",
+    "BRUTEFORCE",
+    "DDOS",
+    "DOS",
+    "PORTSCAN",
+    "WEBATTACK"
+  ],
+  "family_distribution": {
+    "BENIGN": 7010,
+    "BOTNET": 8,
+    "BRUTEFORCE": 28,
+    "DDOS": 583,
+    "DOS": 336,
+    "INFILTRATION": 2,
+    "PORTSCAN": 17,
+    "WEBATTACK": 16
+  },
+  "threshold_analysis": [
+    {
+      "threshold": 0.7,
+      "known_recognition_rate": 0.17813765182186234,
+      "benign_far": 0.02325249643366619,
+      "novel_rejection_rate": 1.0,
+      "known_total": 988,
+      "benign_total": 7010,
+      "novel_total": 2
+    },
+    {
+      "threshold": 0.75,
+      "known_recognition_rate": 0.16194331983805668,
+      "benign_far": 0.019971469329529243,
+      "novel_rejection_rate": 1.0,
+      "known_total": 988,
+      "benign_total": 7010,
+      "novel_total": 2
+    },
+    {
+      "threshold": 0.8,
+      "known_recognition_rate": 0.15182186234817813,
+      "benign_far": 0.013980028530670471,
+      "novel_rejection_rate": 1.0,
+      "known_total": 988,
+      "benign_total": 7010,
+      "novel_total": 2
+    },
+    {
+      "threshold": 0.85,
+      "known_recognition_rate": 0.1396761133603239,
+      "benign_far": 0.010413694721825963,
+      "novel_rejection_rate": 1.0,
+      "known_total": 988,
+      "benign_total": 7010,
+      "novel_total": 2
+    },
+    {
+      "threshold": 0.9,
+      "known_recognition_rate": 0.08906882591093117,
+      "benign_far": 0.0068473609129814554,
+      "novel_rejection_rate": 1.0,
+      "known_total": 988,
+      "benign_total": 7010,
+      "novel_total": 2
+    },
+    {
+      "threshold": 0.92,
+      "known_recognition_rate": 0.07894736842105263,
+      "benign_far": 0.006704707560627674,
+      "novel_rejection_rate": 1.0,
+      "known_total": 988,
+      "benign_total": 7010,
+      "novel_total": 2
+    },
+    {
+      "threshold": 0.95,
+      "known_recognition_rate": 0.0728744939271255,
+      "benign_far": 0.00456490727532097,
+      "novel_rejection_rate": 1.0,
+      "known_total": 988,
+      "benign_total": 7010,
+      "novel_total": 2
+    }
+  ],
+  "notes": [
+    "Only raw CICIDS datasets are used.",
+    "Processed datasets are excluded because they may not contain the full encoder schema.",
+    "Infiltration is never enrolled.",
+    "Benign flows are never enrolled.",
+    "Enrollment uses one prototype per known family.",
+    "Threshold metrics are evaluated without changing M4.",
+    "This benchmark evaluates recognition policy, not M3 family classification."
+  ]
+}

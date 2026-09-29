@@ -1,0 +1,39 @@
+{
+  "benchmark": "M6.3 v3",
+  "total_samples": 6668,
+  "total_errors": 6668,
+  "error_rate": 1.0,
+  "accuracy": 0.0,
+  "macro_precision": 0.0,
+  "macro_recall": 0.0,
+  "macro_f1": 0.0,
+  "weighted_f1": 0.0,
+  "elapsed_seconds": 1.1993295999709517,
+  "throughput_flows_per_second": 5559.772726497788,
+  "ground_truth_classes": [
+    "Benign",
+    "Botnet",
+    "Bruteforce",
+    "DDoS",
+    "DoS",
+    "Heartbleed",
+    "Infiltration",
+    "Portscan",
+    "WebAttacks",
+    "anomalous_network_behavior",
+    "high_bandwidth_flow",
+    "high_rate_connection_attempts",
+    "high_rate_network_activity",
+    "high_volume_flow",
+    "repetitive_connection_behavior"
+  ],
+  "predicted_classes": [
+    "anomalous_network_behavior",
+    "high_bandwidth_flow",
+    "high_rate_connection_attempts",
+    "high_rate_network_activity",
+    "high_volume_flow",
+    "repetitive_connection_behavior"
+  ],
+  "dataset_count": 10
+}
