@@ -1,59 +1,42 @@
 import streamlit as st
-
 st.title("🔭 Vision & Roadmap")
-st.caption("Where ADIS goes after the MVP.")
+st.caption("From a validated MVP to a continuously learning cyber-defense platform.")
 
 st.subheader("Near-term")
-cols = st.columns(3)
-cols[0].markdown("### Investigation\nEvidence enrichment, behavior profiles, ATT&CK mapping, context.")
-cols[1].markdown("### Adaptive Response\nPolicy-driven isolation, validation, recovery and safer automation.")
-cols[2].markdown("### Evaluation\nContinual regression, adversarial testing and first-vs-subsequent exposure measurement.")
+c=st.columns(3)
+c[0].markdown("### 🔎 Investigation\nEvidence enrichment, behavior profiles, ATT&CK mapping and analyst context.")
+c[1].markdown("### 🛡️ Adaptive Response\nPolicy-gated isolation, validation, recovery and safer automation.")
+c[2].markdown("### 📈 Continual Evaluation\nRegression tests, adversarial testing and first-vs-subsequent exposure measurement.")
 
-st.write("")
-st.subheader("Long-term architecture")
-st.markdown("""
-```text
-                    ┌─────────────────────────┐
-                    │   Continuous Telemetry  │
-                    └────────────┬────────────┘
-                                 ↓
-                    ┌─────────────────────────┐
-                    │ Detection / Self Model  │
-                    └────────────┬────────────┘
-                                 ↓
-                    ┌─────────────────────────┐
-                    │ Behavioral Understanding│
-                    └────────────┬────────────┘
-                                 ↓
-              ┌──────────────────┴──────────────────┐
-              ↓                                     ↓
-       Persistent Memory                      Investigation
-              │                                     │
-              └──────────────────┬──────────────────┘
-                                 ↓
-                    ┌─────────────────────────┐
-                    │ Risk + Policy + Safety  │
-                    └────────────┬────────────┘
-                                 ↓
-                    ┌─────────────────────────┐
-                    │ Containment / Recovery  │
-                    └────────────┬────────────┘
-                                 ↓
-                    ┌─────────────────────────┐
-                    │ Validate → Learn → Adapt │
-                    └─────────────────────────┘
-```
-""")
+st.divider()
+st.subheader("Long-term immune architecture")
+st.code("""Continuous Telemetry
+        ↓
+Detection / Self Model
+        ↓
+Behavioral Understanding
+        ↓
+   ┌────┴────┐
+   ↓         ↓
+Memory   Investigation
+   └────┬────┘
+        ↓
+Risk + Policy + Safety
+        ↓
+Containment / Recovery
+        ↓
+Validate → Learn → Adapt
+        ↺""")
 
 st.subheader("Future extensions")
 for x in [
-    "Continual learning with regression protection against catastrophic forgetting.",
-    "Automated adversarial evaluation / controlled red-team generation.",
-    "Richer deception environments and deeper attacker behavior collection.",
-    "Threat-intelligence enrichment and MITRE ATT&CK mapping.",
-    "Evidence-grounded RAG investigation assistant.",
-    "Shared cyber + physical immune architecture as a future research direction.",
-]:
-    st.write("→ " + x)
+"Continual learning with protection against catastrophic forgetting.",
+"Automated controlled red-team / adversarial evaluation.",
+"Richer deception environments and attacker behavior collection.",
+"Threat-intelligence enrichment and MITRE ATT&CK mapping.",
+"Evidence-grounded RAG investigation assistant.",
+"Distributed / multi-agent immune defense.",
+"Cloud, endpoint and identity telemetry integration.",
+]: st.write("→ "+x)
 
-st.warning("These are roadmap directions, not claims that every capability is already implemented in the MVP.")
+st.warning("Roadmap items are future directions, not claims that they are already implemented.")

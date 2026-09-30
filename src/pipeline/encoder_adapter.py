@@ -12,12 +12,13 @@ from src.pipeline.contracts import (
     EMBEDDING_DIM,
     ENCODER_VERSION,
     FEATURE_SCHEMA_HASH,
+    SUPPORTED_ENCODER_VERSIONS,
 )
 
 
 class BehavioralEncoderAdapter:
     """
-    Production adapter for the frozen ADIS Behavioral Encoder v2.
+    Production adapter for the frozen ADIS Behavioral Encoder v2/v3 artifacts.
 
     Artifact structure:
         {
@@ -94,10 +95,10 @@ class BehavioralEncoderAdapter:
         # Version
         artifact_version = self.encoder["encoder_version"]
 
-        if artifact_version != ENCODER_VERSION:
+        if artifact_version not in SUPPORTED_ENCODER_VERSIONS:
             raise ValueError(
-                "Encoder version mismatch: "
-                f"expected={ENCODER_VERSION}, "
+                "Unsupported encoder version: "
+                f"supported={sorted(SUPPORTED_ENCODER_VERSIONS)}, "
                 f"actual={artifact_version}"
             )
 
@@ -190,20 +191,32 @@ class BehavioralEncoderAdapter:
                 "Encoder PCA does not expose transform()."
             )
 
-        if getattr(pca, "components_", None) is None:
-            raise ValueError(
-                "Encoder PCA is not fitted."
-            )
+        is_supervised_projector = (
+            artifact_version == "adis-behavioral-encoder-v3-supervised"
+        )
+        if is_supervised_projector:
+            if not bool(getattr(pca, "_fitted", False)):
+                raise ValueError("Supervised projector is not fitted.")
+        elif getattr(pca, "components_", None) is None:
+            raise ValueError("Encoder PCA is not fitted.")
 
-        if pca.components_.shape != (EMBEDDING_DIM, len(features)):
-            raise ValueError(
-                "Unexpected PCA component shape: "
-                f"expected=({EMBEDDING_DIM}, {len(features)}), "
-                f"actual={pca.components_.shape}"
-            )
+        if is_supervised_projector:
+            if int(getattr(pca, "n_features_in_", -1)) != len(features):
+                raise ValueError("Supervised projector input dimension mismatch.")
+            if int(getattr(pca, "n_components_", -1)) != EMBEDDING_DIM:
+                raise ValueError("Supervised projector output dimension mismatch.")
+        else:
+            components = getattr(pca, "components_", None)
+            if components is None or components.shape != (EMBEDDING_DIM, len(features)):
+                actual = getattr(components, "shape", None)
+                raise ValueError(
+                    "Unexpected PCA component shape: "
+                    f"expected=({EMBEDDING_DIM}, {len(features)}), actual={actual}"
+                )
 
-        # Whitening
-        if bool(self.encoder["whiten"]) != bool(pca.whiten):
+    # Whitening metadata is explicit on the PCA v2 artifact. The v3
+    # supervised projector owns its PCA and LDA branches internally.
+        if hasattr(pca, "whiten") and bool(self.encoder["whiten"]) != bool(pca.whiten):
             raise ValueError(
                 "Encoder whitening metadata does not match PCA."
             )
@@ -407,7 +420,7 @@ class BehavioralEncoderAdapter:
             evidence=list(evidence),
             embedding=embedding.tolist(),
             embedding_dimension=EMBEDDING_DIM,
-            encoder_version=ENCODER_VERSION,
+            encoder_version=self.encoder["encoder_version"],
             feature_schema_hash=FEATURE_SCHEMA_HASH,
         )
 
@@ -415,7 +428,7 @@ class BehavioralEncoderAdapter:
         return {
             "component": "BehavioralEncoderAdapter",
             "model_path": str(self.model_path),
-            "encoder_version": ENCODER_VERSION,
+            "encoder_version": self.encoder["encoder_version"],
             "embedding_dimension": EMBEDDING_DIM,
             "feature_count": len(self.features),
             "log_feature_count": len(self.log_features),
@@ -423,4 +436,3 @@ class BehavioralEncoderAdapter:
             "whiten": bool(self.encoder["whiten"]),
             "normalization": self.encoder["normalization"],
         }
-    

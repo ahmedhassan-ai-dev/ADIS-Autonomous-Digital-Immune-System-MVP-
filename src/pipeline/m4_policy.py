@@ -9,12 +9,12 @@ class M4RecognitionPolicy:
     Frozen ADIS M4 recognition policy.
 
     Thresholds:
-        similarity >= 0.90 -> KNOWN / FAST_PATH
+        similarity >= 0.92 -> KNOWN / FAST_PATH
         similarity >= 0.75 -> UNCERTAIN / INVESTIGATE
         similarity <  0.75 -> NOVEL / ISOLATE
     """
 
-    known_threshold: float = 0.90
+    known_threshold: float = 0.92
     near_threshold: float = 0.75
     policy_version: str = "adis-m4-recognition-policy-v1"
 

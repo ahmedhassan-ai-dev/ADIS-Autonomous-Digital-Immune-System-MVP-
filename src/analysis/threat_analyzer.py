@@ -51,7 +51,7 @@ class ThreatAntigen:
 
 class BehavioralThreatAnalyzer:
     """
-    Production-oriented behavioral analyzer (v2 compatible).
+    Production-oriented analyzer compatible with the versioned behavioral artifact.
 
     Pipeline:
 
@@ -82,7 +82,7 @@ class BehavioralThreatAnalyzer:
         Behavioral Embedding
     """
 
-    ENCODER_VERSION = "adis-behavioral-encoder-v2"
+    ENCODER_VERSION = "adis-behavioral-encoder-v3-supervised"
 
     def __init__(
         self,

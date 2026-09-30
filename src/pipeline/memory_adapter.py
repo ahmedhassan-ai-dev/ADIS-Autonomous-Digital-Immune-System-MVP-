@@ -27,8 +27,8 @@ class ImmuneMemoryAdapter:
     - Perform recognition.
     - Re-map raw memory results to the frozen ADIS policy (M4 Policy v1):
           < 0.75       -> NOVEL
-          0.75 - 0.90  -> UNCERTAIN
-          >= 0.90      -> KNOWN
+          0.75 - 0.92  -> UNCERTAIN
+          >= 0.92      -> KNOWN
     - Commit validated novel threats.
     - Record re-exposures.
     """
@@ -151,10 +151,10 @@ class ImmuneMemoryAdapter:
             similarity < 0.75
                 -> NOVEL
 
-            0.75 <= similarity < 0.90
+            0.75 <= similarity < 0.92
                 -> UNCERTAIN
 
-            similarity >= 0.90
+            similarity >= 0.92
                 -> KNOWN
         """
 

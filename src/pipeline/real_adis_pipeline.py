@@ -35,7 +35,7 @@ class RealADISPipeline:
             ↓
         LightGBM detector
             ↓
-        Behavioral Encoder v2
+        Behavioral Encoder v3 (supervised LDA + PCA)
             ↓
         Threat Analyzer
             ↓
@@ -159,7 +159,7 @@ class RealADISPipeline:
 
         evidence = [
             "CIC-IDS2017 flow representation",
-            "Behavioral Encoder v2",
+            "Behavioral Encoder v3 supervised LDA + PCA",
         ]
 
         return self.encoder.build_result(

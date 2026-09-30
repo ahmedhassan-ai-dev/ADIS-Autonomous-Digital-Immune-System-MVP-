@@ -11,7 +11,11 @@ from typing import Any, Dict, List, Optional
 
 CONTRACT_VERSION = "adis-contract-v1"
 
-ENCODER_VERSION = "adis-behavioral-encoder-v2"
+ENCODER_VERSION = "adis-behavioral-encoder-v3-supervised"
+SUPPORTED_ENCODER_VERSIONS = {
+    "adis-behavioral-encoder-v2",
+    ENCODER_VERSION,
+}
 EMBEDDING_DIM = 32
 
 KNOWN_THRESHOLD = 0.92
@@ -98,7 +102,7 @@ class BehaviorResult:
                 f"ADIS production embedding must be {EMBEDDING_DIM}D."
             )
 
-        if self.encoder_version != ENCODER_VERSION:
+        if self.encoder_version not in SUPPORTED_ENCODER_VERSIONS:
             raise ValueError(
                 f"Unexpected encoder version: {self.encoder_version}"
             )

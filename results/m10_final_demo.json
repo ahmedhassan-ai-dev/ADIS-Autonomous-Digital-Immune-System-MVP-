@@ -1,6 +1,6 @@
 {
-  "run_id": "aa046318-fb99-4359-9b52-1319eabc53ac",
-  "timestamp": 1790650198.6640124,
+  "run_id": "10f5dc77-6392-4252-8ec7-7a81eac98ab7",
+  "timestamp": 1790762931.6852036,
   "mode": "m10_final_end_to_end",
   "components": {
     "detector_model": "C:\\Dev\\ADIS-Autonomous-Digital-Immune-System-MVP-\\models\\merged_binary_detector.joblib",
@@ -49,10 +49,10 @@
   },
   "investigation": null,
   "latency_ms": {
-    "detector": 2.9987000161781907,
-    "behavioral_analysis": 65.03689999226481,
-    "memory": 0.6405999884009361,
-    "total": 68.67619999684393
+    "detector": 2.985800034366548,
+    "behavioral_analysis": 70.81040006596595,
+    "memory": 0.964100006967783,
+    "total": 74.76030010730028
   },
   "memory_count": 0
 }
